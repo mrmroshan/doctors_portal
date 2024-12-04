@@ -20,6 +20,8 @@ class Patient extends Model
 
     protected $casts = [
         'date_of_birth' => 'date',
+        'created_at' => 'datetime',
+        'updated_at' => 'datetime'
     ];
 
     // Relationships

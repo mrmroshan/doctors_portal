@@ -55,58 +55,68 @@
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        @forelse($prescriptions as $prescription)
-                            <tr>
-                                <td>{{ $prescription->created_at->format('Y-m-d') }}</td>
-                                <td>
-                                    <a href="{{ route('patients.show', $prescription->patient) }}">
-                                        {{ $prescription->patient->full_name }}
-                                    </a>
-                                </td>
-                                <td>{{ $prescription->product }}</td>
-                                <td>{{ $prescription->getDosageInstructions() }}</td>
-                                <td>
-                                    @switch($prescription->sync_status)
-                                        @case('synced')
-                                            <span class="badge bg-success">Synced</span>
-                                            @break
-                                        @case('error')
-                                            <span class="badge bg-danger" title="{{ $prescription->sync_error }}">Error</span>
-                                            @break
-                                        @default
-                                            <span class="badge bg-warning text-dark">Pending</span>
-                                    @endswitch
-                                </td>
-                                <td>
-                                    <div class="btn-group">
-                                        <a href="{{ route('prescriptions.show', $prescription) }}" 
-                                           class="btn btn-sm btn-info" title="View">
-                                            <i class="fas fa-eye"></i>
-                                        </a>
-                                        <a href="{{ route('prescriptions.edit', $prescription) }}" 
-                                           class="btn btn-sm btn-primary" title="Edit">
-                                            <i class="fas fa-edit"></i>
-                                        </a>
-                                        @if($prescription->sync_status === 'error')
-                                            <button type="button" 
-                                                    class="btn btn-sm btn-warning" 
-                                                    title="Retry Sync"
-                                                    onclick="retrySync({{ $prescription->id }})">
-                                                <i class="fas fa-sync"></i>
-                                            </button>
-                                        @endif
-                                    </div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="6" class="text-center py-4">
-                                    No prescriptions found.
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
+                    <!-- Replace the existing table body with this updated version -->
+<tbody>
+    @forelse($prescriptions as $prescription)
+        <tr>
+            <td>{{ $prescription->prescription_date }}</td>
+            <td>
+                <a href="{{ route('patients.show', $prescription->patient) }}">
+                    {{ $prescription->patient->full_name }}
+                </a>
+            </td>
+            <td>
+                <!-- Display all medications -->
+                {{ $prescription->medications_list }}
+            </td>
+            <td>
+                <!-- Show count of medications -->
+                {{ $prescription->medications->count() }} 
+                {{ Str::plural('medication', $prescription->medications->count()) }}
+            </td>
+            <td>
+                @switch($prescription->sync_status)
+                    @case('synced')
+                        <span class="badge bg-success">Synced</span>
+                        @break
+                    @case('error')
+                        <span class="badge bg-danger" title="{{ $prescription->sync_error }}">Error</span>
+                        @break
+                    @default
+                        <span class="badge bg-warning text-dark">Pending</span>
+                @endswitch
+            </td>
+            <td>
+                <div class="btn-group">
+                    <a href="{{ route('prescriptions.show', $prescription) }}" 
+                       class="btn btn-sm btn-info" title="View">
+                        <i class="fas fa-eye"></i>
+                    </a>
+                    @if($prescription->sync_status !== 'synced')
+                        <a href="{{ route('prescriptions.edit', $prescription) }}" 
+                           class="btn btn-sm btn-primary" title="Edit">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                    @endif
+                    @if($prescription->sync_status === 'error')
+                        <button type="button" 
+                                class="btn btn-sm btn-warning" 
+                                title="Retry Sync"
+                                onclick="retrySync({{ $prescription->id }})">
+                            <i class="fas fa-sync"></i>
+                        </button>
+                    @endif
+                </div>
+            </td>
+        </tr>
+    @empty
+        <tr>
+            <td colspan="6" class="text-center py-4">
+                No prescriptions found.
+            </td>
+        </tr>
+    @endforelse
+</tbody>
                 </table>
             </div>
         </div>

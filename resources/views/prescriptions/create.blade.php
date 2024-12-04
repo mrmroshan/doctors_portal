@@ -9,21 +9,21 @@
 
         <div class="card-body">
             <form action="{{ route('prescriptions.store') }}" method="POST">
-            @if(session('error'))
-    <div class="alert alert-danger">
-        {{ session('error') }}
-    </div>
-@endif
+                @if(session('error'))
+                    <div class="alert alert-danger">
+                        {{ session('error') }}
+                    </div>
+                @endif
 
-@if ($errors->any())
-    <div class="alert alert-danger">
-        <ul class="mb-0">
-            @foreach ($errors->all() as $error)
-                <li>{{ $error }}</li>
-            @endforeach
-        </ul>
-    </div>
-@endif
+                @if ($errors->any())
+                    <div class="alert alert-danger">
+                        <ul class="mb-0">
+                            @foreach ($errors->all() as $error)
+                                <li>{{ $error }}</li>
+                            @endforeach
+                        </ul>
+                    </div>
+                @endif
                 @csrf
                 
                 <!-- Prescription Date -->
@@ -38,32 +38,32 @@
                 </div>
 
                 @php
-    \Log::info('Rendering prescription create view', [
-        'patient_count' => $patients->count(),
-        'user_id' => auth()->id()
-    ]);
-@endphp
+                    \Log::info('Rendering prescription create view', [
+                        'patient_count' => $patients->count(),
+                        'user_id' => auth()->id()
+                    ]);
+                @endphp
 
-<!-- Patient Selection with Create Option -->
-<div class="form-group mb-3">
-    <label for="patient_id">Patient <span class="text-danger">*</span></label>
-    <div class="input-group">
-        <select name="patient_id" id="patient_id" class="form-control @error('patient_id') is-invalid @enderror">
-            <option value="">Select Patient</option>
-            @foreach($patients as $patient)
-                <option value="{{ $patient->id }}" {{ old('patient_id') == $patient->id ? 'selected' : '' }}>
-                    {{ $patient->first_name }} {{ $patient->last_name }} - {{ $patient->phone }}
-                </option>
-            @endforeach
-        </select>
-        <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#newPatientModal">
-            <i class="fas fa-plus"></i> New Patient
-        </button>
-    </div>
-    @error('patient_id')
-        <div class="invalid-feedback">{{ $message }}</div>
-    @enderror
-</div>
+                <!-- Patient Selection with Create Option -->
+                <div class="form-group mb-3">
+                    <label for="patient_id">Patient <span class="text-danger">*</span></label>
+                    <div class="input-group">
+                        <select name="patient_id" id="patient_id" class="form-control @error('patient_id') is-invalid @enderror">
+                            <option value="">Select Patient</option>
+                            @foreach($patients as $patient)
+                                <option value="{{ $patient->id }}" {{ old('patient_id') == $patient->id ? 'selected' : '' }}>
+                                    {{ $patient->first_name }} {{ $patient->last_name }} - {{ $patient->phone }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#newPatientModal">
+                            <i class="fas fa-plus"></i> New Patient
+                        </button>
+                    </div>
+                    @error('patient_id')
+                        <div class="invalid-feedback">{{ $message }}</div>
+                    @enderror
+                </div>
 
                 <!-- Dynamic Medications List -->
                 <div class="card mb-3">
@@ -194,7 +194,6 @@
         </div>
     </div>
 </div>
-
 @endsection
 
 @push('styles')
@@ -204,19 +203,9 @@
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-
-
 <script>
-
-
-// Initialize select2 - place this in your DOMContentLoaded event handler
 $(document).ready(function() {
-    // Destroy any existing Select2 instances
-    if ($('#patient_id').hasClass("select2-hidden-accessible")) {
-        $('#patient_id').select2('destroy');
-    }
-
-    // Initialize Select2 with proper configuration
+    // Initialize select2
     $('#patient_id').select2({
         theme: 'bootstrap-5',
         placeholder: 'Select Patient',
@@ -224,110 +213,53 @@ $(document).ready(function() {
         width: '100%'
     });
 
-
-            // Handle dynamic medication addition
-            let medicationIndex = 0;
+    // Handle dynamic medication addition
+    let medicationIndex = 0;
+    
+    $('#addMedication').click(function() {
+        medicationIndex++;
+        const template = $('.medication-item').first().clone();
         
-        $('#addMedication').click(function() {
-            medicationIndex++;
-            const template = $('.medication-item').first().clone();
-            
-            // Update all name attributes with new index
-            template.find('input, select, textarea').each(function() {
-                const name = $(this).attr('name');
-                if (name) {
-                    $(this).attr('name', name.replace('[0]', `[${medicationIndex}]`));
-                }
-                $(this).val(''); // Clear values
-                $(this).prop('checked', false); // Uncheck checkboxes
-            });
-            
-            template.attr('data-index', medicationIndex);
-            $('#medications-container').append(template);
+        // Update all name attributes with new index
+        template.find('input, select, textarea').each(function() {
+            const name = $(this).attr('name');
+            if (name) {
+                $(this).attr('name', name.replace('[0]', `[${medicationIndex}]`));
+            }
+            $(this).val(''); // Clear values
+            $(this).prop('checked', false); // Uncheck checkboxes
         });
-
-        // Handle medication removal
-        $(document).on('click', '.remove-medication', function() {
-            if ($('.medication-item').length > 1) {
-                $(this).closest('.medication-item').remove();
-            }
-        });
-
-
-// Update your patient creation success handler
-$('#savePatient').click(function() {
-    const form = $('#newPatientForm');
-    const formData = new FormData(form[0]);
-    
-    $(this).prop('disabled', true);
-    
-    $.ajax({
-        url: '/api/patients',
-        method: 'POST',
-        data: formData,
-        processData: false,
-        contentType: false,
-        headers: {
-            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
-            'Accept': 'application/json'
-        },
-        success: function(response) {
-            if (response.success) {
-                // Create new option
-                const newOption = new Option(
-                    `${response.patient.full_name} - ${response.patient.phone}`,
-                    response.patient.id,
-                    true,
-                    true
-                );
-
-                // Remove any existing duplicate options
-                $(`#patient_id option[value='${response.patient.id}']`).remove();
-
-                // Add new option and trigger change
-                $('#patient_id')
-                    .append(newOption)
-                    .trigger('change');
-
-                // Close modal and reset form
-                $('#newPatientModal').modal('hide');
-                form[0].reset();
-            }
-        },
-        error: function(xhr) {
-            let errorMessage = 'Failed to create patient';
-            if (xhr.responseJSON && xhr.responseJSON.message) {
-                errorMessage = xhr.responseJSON.message;
-            }
-            alert(errorMessage);
-        },
-        complete: function() {
-            $('#savePatient').prop('disabled', false);
-        }
+        
+        template.attr('data-index', medicationIndex);
+        $('#medications-container').append(template);
     });
-});
 
-
-// Validate period selection when "every" is filled
-$(document).on('change', '.period-every', function() {
-        const periodSelect = $(this).closest('.row').find('.period-select');
-        if ($(this).val()) {
-            periodSelect.prop('required', true);
+    // Handle medication removal
+    $(document).on('click', '.remove-medication', function() {
+        if ($('.medication-item').length > 1) {
+            $(this).closest('.medication-item').remove();
         } else {
-            periodSelect.prop('required', false);
+            alert('At least one medication is required.');
         }
     });
 
-    // Form submission handling
-    $('form').on('submit', function(e) {
-        // Remove empty medication fields
-        $('.medication-item').each(function() {
-            const product = $(this).find('[name$="[product]"]').val();
-            if (!product) {
-                $(this).remove();
-            }
-        });
+    // Handle period validation
+    $(document).on('change', '.period-every, .period-select', function() {
+        const row = $(this).closest('.row');
+        const every = row.find('.period-every').val();
+        const period = row.find('.period-select').val();
+        
+        if (every && !period) {
+            row.find('.period-select').prop('required', true);
+        } else if (!every && period) {
+            row.find('.period-every').prop('required', true);
+        } else {
+            row.find('.period-select, .period-every').prop('required', false);
+        }
+    });
 
+    // Form validation
+    $('form').on('submit', function(e) {
         // Ensure at least one medication exists
         if ($('.medication-item').length === 0) {
             e.preventDefault();
@@ -338,8 +270,9 @@ $(document).on('change', '.period-every', function() {
         // Validate period fields
         let isValid = true;
         $('.period-every').each(function() {
+            const row = $(this).closest('.row');
             const every = $(this).val();
-            const period = $(this).closest('.row').find('.period-select').val();
+            const period = row.find('.period-select').val();
             
             if ((every && !period) || (!every && period)) {
                 isValid = false;
@@ -352,8 +285,58 @@ $(document).on('change', '.period-every', function() {
         return isValid;
     });
 
+    // Handle new patient creation
+    $('#savePatient').click(function() {
+        const form = $('#newPatientForm');
+        const formData = new FormData(form[0]);
+        
+        $(this).prop('disabled', true);
+        
+        $.ajax({
+            url: '/api/patients',
+            method: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            headers: {
+                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
+                'Accept': 'application/json'
+            },
+            success: function(response) {
+                if (response.success) {
+                    // Create new option
+                    const newOption = new Option(
+                        `${response.patient.full_name} - ${response.patient.phone}`,
+                        response.patient.id,
+                        true,
+                        true
+                    );
+
+                    // Remove any existing duplicate options
+                    $(`#patient_id option[value='${response.patient.id}']`).remove();
+
+                    // Add new option and trigger change
+                    $('#patient_id')
+                        .append(newOption)
+                        .trigger('change');
+
+                    // Close modal and reset form
+                    $('#newPatientModal').modal('hide');
+                    form[0].reset();
+                }
+            },
+            error: function(xhr) {
+                let errorMessage = 'Failed to create patient';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    errorMessage = xhr.responseJSON.message;
+                }
+                alert(errorMessage);
+            },
+            complete: function() {
+                $('#savePatient').prop('disabled', false);
+            }
+        });
+    });
 });
-
-
 </script>
 @endpush

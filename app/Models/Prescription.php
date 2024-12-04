@@ -27,13 +27,6 @@ class Prescription extends Model
         'patient_id',
         'prescription_date',
         'created_by',
-        'product',
-        'quantity',
-        'dosage',
-        'every',
-        'period',
-        'as_needed',
-        'directions',
         'odoo_order_id',
         'sync_status',
         'sync_error'
@@ -55,6 +48,16 @@ class Prescription extends Model
     public function doctor()
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function medications()
+    {
+        return $this->hasMany(PrescriptionMedication::class);
+    }
+
+    public function getMedicationsListAttribute()
+    {
+        return $this->medications->pluck('product')->join(', ');
     }
 
     // Scopes
