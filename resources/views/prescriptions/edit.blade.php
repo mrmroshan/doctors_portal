@@ -15,6 +15,10 @@
                 <div class="alert alert-danger">{{ session('error') }}</div>
             @endif
 
+            @if(session('warning'))
+                <div class="alert alert-warning">{{ session('warning') }}</div>
+            @endif
+
             @if ($errors->any())
                 <div class="alert alert-danger">
                     <ul class="mb-0">
@@ -34,7 +38,7 @@
                     <label for="prescription_date">Prescription Date <span class="text-danger">*</span></label>
                     <input type="date" name="prescription_date" id="prescription_date" 
                         class="form-control @error('prescription_date') is-invalid @enderror"
-                        value="{{ old('prescription_date', $prescription->prescription_date) }}" 
+                        value="{{ old('prescription_date', $prescription->prescription_date->format('Y-m-d')) }}" 
                         required {{ $prescription->sync_status === 'synced' ? 'readonly' : '' }}>
                     @error('prescription_date')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -43,8 +47,8 @@
 
                 <!-- Patient Selection -->
                 <div class="form-group mb-3">
-                    <label for="patient_id">Patient</label>
-                    <select name="patient_id" id="patient_id" class="form-control" required 
+                    <label for="patient_id">Patient <span class="text-danger">*</span></label>
+                    <select name="patient_id" id="patient_id" class="form-control select2" required 
                             {{ $prescription->sync_status === 'synced' ? 'disabled' : '' }}>
                         <option value="">Select Patient</option>
                         @foreach($patients as $patient)
@@ -77,12 +81,20 @@
                                         <div class="col-md-6">
                                             <div class="form-group mb-3">
                                                 <label>Medication <span class="text-danger">*</span></label>
-                                                <input type="text" 
-                                                    name="medications[{{ $index }}][product]" 
-                                                    class="form-control" 
-                                                    value="{{ old("medications.$index.product", $medication->product) }}"
-                                                    required
-                                                    {{ $prescription->sync_status === 'synced' ? 'readonly' : '' }}>
+                                                <select name="medications[{{ $index }}][product]" 
+                                                        class="form-control medication-select" 
+                                                        required 
+                                                        {{ $prescription->sync_status === 'synced' ? 'disabled' : '' }}>
+                                                    <option value="">Select Medication</option>
+                                                    @foreach($medications as $med)
+                                                        <option value="{{ $med['id'] }}" 
+                                                            {{ old("medications.$index.product", $medication->product) == $med['id'] ? 'selected' : '' }}
+                                                            data-name="{{ $med['name'] }}"
+                                                            data-code="{{ $med['default_code'] }}">
+                                                            {{ $med['name'] }} ({{ $med['default_code'] }})
+                                                        </option>
+                                                    @endforeach
+                                                </select>
                                             </div>
                                         </div>
                                         <div class="col-md-6">
@@ -159,7 +171,9 @@
                                         </div>
                                     </div>
                                     @if($prescription->sync_status !== 'synced')
-                                        <button type="button" class="btn btn-sm btn-danger remove-medication">Remove</button>
+                                        <button type="button" class="btn btn-sm btn-danger remove-medication">
+                                            <i class="fas fa-trash"></i> Remove
+                                        </button>
                                     @endif
                                 </div>
                             @endforeach
@@ -190,7 +204,7 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
 $(document).ready(function() {
-    // Initialize select2
+    // Initialize select2 for patient
     $('#patient_id').select2({
         theme: 'bootstrap-5',
         placeholder: 'Select Patient',
@@ -198,70 +212,118 @@ $(document).ready(function() {
         width: '100%'
     });
 
+    // Initialize select2 for existing medication selects
+    initializeMedicationSelect();
+
     // Handle dynamic medication addition
-    let medicationIndex = {{ count($prescription->medications) - 1 }};
+    let medicationIndex = {{ count($prescription->medications) }};
+    const medications = @json($medications);
     
     $('#addMedication').click(function() {
-        medicationIndex++;
-        const template = $('.medication-item').first().clone();
-        
-        // Update all name attributes with new index
-        template.find('input, select, textarea').each(function() {
-            const name = $(this).attr('name');
-            if (name) {
-                $(this).attr('name', name.replace('[0]', `[${medicationIndex}]`));
-            }
-            $(this).val(''); // Clear values
-            $(this).prop('checked', false); // Uncheck checkboxes
-        });
-        
-        template.attr('data-index', medicationIndex);
+        const template = `
+            <div class="medication-item mb-3 border-bottom pb-3" data-index="${medicationIndex}">
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group mb-3">
+                            <label>Medication <span class="text-danger">*</span></label>
+                            <select name="medications[${medicationIndex}][product]" 
+                                    class="form-control medication-select" 
+                                    required>
+                                <option value="">Select Medication</option>
+                                ${medications.map(med => `
+                                    <option value="${med.id}" 
+                                            data-name="${med.name}"
+                                            data-code="${med.default_code}">
+                                        ${med.name} (${med.default_code})
+                                    </option>
+                                `).join('')}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group mb-3">
+                            <label>Quantity <span class="text-danger">*</span></label>
+                            <input type="number" 
+                                name="medications[${medicationIndex}][quantity]" 
+                                class="form-control" 
+                                required min="1">
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="form-group mb-3">
+                            <label>Dosage <span class="text-danger">*</span></label>
+                            <input type="text" 
+                                name="medications[${medicationIndex}][dosage]" 
+                                class="form-control" 
+                                required>
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group mb-3">
+                            <label>Every</label>
+                            <input type="number" 
+                                name="medications[${medicationIndex}][every]" 
+                                class="form-control period-every" 
+                                min="1">
+                        </div>
+                    </div>
+                    <div class="col-md-4">
+                        <div class="form-group mb-3">
+                            <label>Period</label>
+                            <select name="medications[${medicationIndex}][period]" 
+                                    class="form-control period-select">
+                                <option value="">Select Period</option>
+                                ${['hour', 'hours', 'day', 'days', 'week', 'weeks'].map(period => `
+                                    <option value="${period}">${period.charAt(0).toUpperCase() + period.slice(1)}</option>
+                                `).join('')}
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-12">
+                        <div class="form-check mb-3">
+                            <input type="checkbox" 
+                                class="form-check-input" 
+                                name="medications[${medicationIndex}][as_needed]" 
+                                value="1">
+                            <label class="form-check-label">Take as needed</label>
+                        </div>
+                        <div class="form-group mb-3">
+                            <label>Additional Directions <span class="text-danger">*</span></label>
+                            <textarea name="medications[${medicationIndex}][directions]" 
+                                class="form-control" 
+                                rows="2" 
+                                required></textarea>
+                        </div>
+                    </div>
+                </div>
+                <button type="button" class="btn btn-sm btn-danger remove-medication">
+                    <i class="fas fa-trash"></i> Remove
+                </button>
+            </div>
+        `;
+
         $('#medications-container').append(template);
+        initializeMedicationSelect();
+        medicationIndex++;
     });
 
     // Handle medication removal
     $(document).on('click', '.remove-medication', function() {
-        if ($('.medication-item').length > 1) {
-            $(this).closest('.medication-item').remove();
-        } else {
-            alert('At least one medication is required.');
-        }
+        $(this).closest('.medication-item').remove();
     });
 
-    // Handle period validation
-    $(document).on('change', '.period-every, .period-select', function() {
-        const row = $(this).closest('.row');
-        const every = row.find('.period-every').val();
-        const period = row.find('.period-select').val();
-        
-        if (every && !period) {
-            row.find('.period-select').prop('required', true);
-        } else if (!every && period) {
-            row.find('.period-every').prop('required', true);
-        } else {
-            row.find('.period-select, .period-every').prop('required', false);
-        }
-    });
-
-    // Form validation
-    $('form').on('submit', function(e) {
-        // Validate period fields
-        let isValid = true;
-        $('.period-every').each(function() {
-            const row = $(this).closest('.row');
-            const every = $(this).val();
-            const period = row.find('.period-select').val();
-            
-            if ((every && !period) || (!every && period)) {
-                isValid = false;
-                alert('Both "Every" and "Period" fields must be filled if one is provided.');
-                e.preventDefault();
-                return false;
-            }
+    function initializeMedicationSelect() {
+        $('.medication-select').not('.select2-hidden-accessible').select2({
+            theme: 'bootstrap-5',
+            placeholder: 'Select Medication',
+            allowClear: true,
+            width: '100%'
         });
-
-        return isValid;
-    });
+    }
 });
 </script>
 @endpush

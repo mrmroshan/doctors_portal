@@ -15,6 +15,12 @@
                     </div>
                 @endif
 
+                @if(session('warning'))
+                    <div class="alert alert-warning">
+                        {{ session('warning') }}
+                    </div>
+                @endif
+
                 @if ($errors->any())
                     <div class="alert alert-danger">
                         <ul class="mb-0">
@@ -36,13 +42,6 @@
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>
-
-                @php
-                    \Log::info('Rendering prescription create view', [
-                        'patient_count' => $patients->count(),
-                        'user_id' => auth()->id()
-                    ]);
-                @endphp
 
                 <!-- Patient Selection with Create Option -->
                 <div class="form-group mb-3">
@@ -81,8 +80,18 @@
                                     <div class="col-md-6">
                                         <div class="form-group mb-3">
                                             <label>Medication <span class="text-danger">*</span></label>
-                                            <input type="text" name="medications[0][product]" 
-                                                class="form-control" required>
+                                            <select name="medications[0][product]" class="form-control medication-select" required>
+                                                <option value="">Select Medication</option>
+                                                @foreach($medications as $medication)
+                                                    <option value="{{ $medication['id'] }}" 
+                                                        data-price="{{ $medication['list_price'] }}"
+                                                        data-available="{{ $medication['qty_available'] }}">
+                                                        {{ $medication['name'] }} 
+                                                        ({{ $medication['default_code'] }}) - 
+                                                        Stock: {{ $medication['qty_available'] }}
+                                                    </option>
+                                                @endforeach
+                                            </select>
                                         </div>
                                     </div>
                                     <div class="col-md-6">
@@ -149,7 +158,6 @@
         </div>
     </div>
 </div>
-
 <!-- New Patient Modal -->
 <div class="modal fade" id="newPatientModal" tabindex="-1">
     <div class="modal-dialog">
@@ -205,7 +213,7 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
 $(document).ready(function() {
-    // Initialize select2
+    // Initialize select2 for patient
     $('#patient_id').select2({
         theme: 'bootstrap-5',
         placeholder: 'Select Patient',
@@ -213,28 +221,48 @@ $(document).ready(function() {
         width: '100%'
     });
 
+    // Initialize select2 for first medication
+    initializeMedicationSelect($('.medication-select').first());
+
     // Handle dynamic medication addition
     let medicationIndex = 0;
     
     $('#addMedication').click(function() {
         medicationIndex++;
-        const template = $('.medication-item').first().clone();
         
-        // Update all name attributes with new index
+        // Clone the first medication item
+        let template = $('.medication-item').first().clone();
+        
+        // Clean up the cloned template
+        template.find('.select2-container').remove();
+        template.find('.text-warning, .text-danger').remove();
+        
+        // Update indices and clear values
         template.find('input, select, textarea').each(function() {
-            const name = $(this).attr('name');
+            let name = $(this).attr('name');
             if (name) {
                 $(this).attr('name', name.replace('[0]', `[${medicationIndex}]`));
             }
-            $(this).val(''); // Clear values
-            $(this).prop('checked', false); // Uncheck checkboxes
+            if ($(this).hasClass('medication-select')) {
+                $(this).val(null);
+            } else if ($(this).attr('type') === 'checkbox') {
+                $(this).prop('checked', false);
+            } else {
+                $(this).val('');
+            }
         });
-        
+
+        // Update data index
         template.attr('data-index', medicationIndex);
+        
+        // Append the template
         $('#medications-container').append(template);
+        
+        // Initialize select2 on the new medication select
+        initializeMedicationSelect(template.find('.medication-select'));
     });
 
-    // Handle medication removal
+    // Handle remove medication
     $(document).on('click', '.remove-medication', function() {
         if ($('.medication-item').length > 1) {
             $(this).closest('.medication-item').remove();
@@ -243,54 +271,65 @@ $(document).ready(function() {
         }
     });
 
-    // Handle period validation
-    $(document).on('change', '.period-every, .period-select', function() {
-        const row = $(this).closest('.row');
-        const every = row.find('.period-every').val();
-        const period = row.find('.period-select').val();
+    // Handle medication selection change
+    $(document).on('change', '.medication-select', function() {
+        const selected = $(this).find(':selected');
+        const available = selected.data('available');
+        const quantityInput = $(this).closest('.medication-item')
+            .find('input[name$="[quantity]"]');
         
-        if (every && !period) {
-            row.find('.period-select').prop('required', true);
-        } else if (!every && period) {
-            row.find('.period-every').prop('required', true);
-        } else {
-            row.find('.period-select, .period-every').prop('required', false);
+        // Remove existing messages
+        $(this).siblings('.text-warning, .text-danger').remove();
+        
+        if (!selected.val()) return;
+
+        // Set max quantity and show warnings
+        if (available !== undefined) {
+            quantityInput.attr('max', available);
+            
+            if (available <= 0) {
+                $(this).after('<div class="text-danger small">Out of stock</div>');
+            } else if (available < 5) {
+                $(this).after(`<div class="text-warning small">Low stock: ${available} units available</div>`);
+            }
         }
     });
 
     // Form validation
     $('form').on('submit', function(e) {
-        // Ensure at least one medication exists
+        let isValid = true;
+
+        // Validate medications exist
         if ($('.medication-item').length === 0) {
-            e.preventDefault();
             alert('Please add at least one medication.');
-            return false;
+            isValid = false;
         }
 
         // Validate period fields
-        let isValid = true;
         $('.period-every').each(function() {
-            const row = $(this).closest('.row');
             const every = $(this).val();
-            const period = row.find('.period-select').val();
+            const period = $(this).closest('.row').find('.period-select').val();
             
             if ((every && !period) || (!every && period)) {
-                isValid = false;
                 alert('Both "Every" and "Period" fields must be filled if one is provided.');
-                e.preventDefault();
+                isValid = false;
                 return false;
             }
         });
 
-        return isValid;
+        if (!isValid) {
+            e.preventDefault();
+            return false;
+        }
     });
 
     // Handle new patient creation
     $('#savePatient').click(function() {
+        const button = $(this);
         const form = $('#newPatientForm');
         const formData = new FormData(form[0]);
         
-        $(this).prop('disabled', true);
+        button.prop('disabled', true);
         
         $.ajax({
             url: '/api/patients',
@@ -299,44 +338,52 @@ $(document).ready(function() {
             processData: false,
             contentType: false,
             headers: {
-                'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content'),
                 'Accept': 'application/json'
             },
             success: function(response) {
                 if (response.success) {
-                    // Create new option
+                    // Add new patient to select
                     const newOption = new Option(
                         `${response.patient.full_name} - ${response.patient.phone}`,
                         response.patient.id,
                         true,
                         true
                     );
-
-                    // Remove any existing duplicate options
-                    $(`#patient_id option[value='${response.patient.id}']`).remove();
-
-                    // Add new option and trigger change
+                    
                     $('#patient_id')
+                        .find(`option[value='${response.patient.id}']`).remove()
+                        .end()
                         .append(newOption)
                         .trigger('change');
 
-                    // Close modal and reset form
-                    $('#newPatientModal').modal('hide');
+                    // Reset and close
                     form[0].reset();
+                    $('#newPatientModal').modal('hide');
                 }
             },
             error: function(xhr) {
-                let errorMessage = 'Failed to create patient';
-                if (xhr.responseJSON && xhr.responseJSON.message) {
-                    errorMessage = xhr.responseJSON.message;
-                }
-                alert(errorMessage);
+                const message = xhr.responseJSON?.message || 'Failed to create patient';
+                alert(message);
             },
             complete: function() {
-                $('#savePatient').prop('disabled', false);
+                button.prop('disabled', false);
             }
         });
     });
 });
+
+// Helper function to initialize medication select
+function initializeMedicationSelect(element) {
+    if (element.hasClass('select2-hidden-accessible')) {
+        element.select2('destroy');
+    }
+    
+    element.select2({
+        theme: 'bootstrap-5',
+        placeholder: 'Select Medication',
+        allowClear: true,
+        width: '100%'
+    });
+}
 </script>
 @endpush

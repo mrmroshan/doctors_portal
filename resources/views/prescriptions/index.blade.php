@@ -40,6 +40,12 @@
         </div>
     </div>
 
+    @if(session('warning'))
+        <div class="alert alert-warning">
+            {{ session('warning') }}
+        </div>
+    @endif
+
     <!-- Prescriptions List -->
     <div class="card">
         <div class="card-body p-0">
@@ -49,74 +55,79 @@
                         <tr>
                             <th>Date</th>
                             <th>Patient</th>
-                            <th>Medication</th>
-                            <th>Dosage</th>
+                            <th>Medications</th>
+                            <th>Quantity</th>
                             <th>Sync Status</th>
                             <th>Actions</th>
                         </tr>
                     </thead>
-                    <!-- Replace the existing table body with this updated version -->
-<tbody>
-    @forelse($prescriptions as $prescription)
-        <tr>
-            <td>{{ $prescription->prescription_date }}</td>
-            <td>
-                <a href="{{ route('patients.show', $prescription->patient) }}">
-                    {{ $prescription->patient->full_name }}
-                </a>
-            </td>
-            <td>
-                <!-- Display all medications -->
-                {{ $prescription->medications_list }}
-            </td>
-            <td>
-                <!-- Show count of medications -->
-                {{ $prescription->medications->count() }} 
-                {{ Str::plural('medication', $prescription->medications->count()) }}
-            </td>
-            <td>
-                @switch($prescription->sync_status)
-                    @case('synced')
-                        <span class="badge bg-success">Synced</span>
-                        @break
-                    @case('error')
-                        <span class="badge bg-danger" title="{{ $prescription->sync_error }}">Error</span>
-                        @break
-                    @default
-                        <span class="badge bg-warning text-dark">Pending</span>
-                @endswitch
-            </td>
-            <td>
-                <div class="btn-group">
-                    <a href="{{ route('prescriptions.show', $prescription) }}" 
-                       class="btn btn-sm btn-info" title="View">
-                        <i class="fas fa-eye"></i>
-                    </a>
-                    @if($prescription->sync_status !== 'synced')
-                        <a href="{{ route('prescriptions.edit', $prescription) }}" 
-                           class="btn btn-sm btn-primary" title="Edit">
-                            <i class="fas fa-edit"></i>
-                        </a>
-                    @endif
-                    @if($prescription->sync_status === 'error')
-                        <button type="button" 
-                                class="btn btn-sm btn-warning" 
-                                title="Retry Sync"
-                                onclick="retrySync({{ $prescription->id }})">
-                            <i class="fas fa-sync"></i>
-                        </button>
-                    @endif
-                </div>
-            </td>
-        </tr>
-    @empty
-        <tr>
-            <td colspan="6" class="text-center py-4">
-                No prescriptions found.
-            </td>
-        </tr>
-    @endforelse
-</tbody>
+                    <tbody>
+                        @forelse($prescriptions as $prescription)
+                            <tr>
+                                <td>{{ $prescription->prescription_date->format('M d, Y') }}</td>
+                                <td>
+                                    <a href="{{ route('patients.show', $prescription->patient) }}">
+                                        {{ $prescription->patient->full_name }}
+                                    </a>
+                                </td>
+                                <td>
+                                    @foreach($prescription->medications as $medication)
+                                        <div class="mb-1">
+                                            {{ $medication->product_name ?? 'Unknown Product' }}
+                                            @if($medication->product_code)
+                                                <br>
+                                                <small class="text-muted">({{ $medication->product_code }})</small>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </td>
+                                <td>
+                                    {{ $prescription->medications->count() }} 
+                                    {{ Str::plural('medication', $prescription->medications->count()) }}
+                                </td>
+                                <td>
+                                    @switch($prescription->sync_status)
+                                        @case('synced')
+                                            <span class="badge bg-success">Synced</span>
+                                            @break
+                                        @case('error')
+                                            <span class="badge bg-danger" title="{{ $prescription->sync_error }}">Error</span>
+                                            @break
+                                        @default
+                                            <span class="badge bg-warning text-dark">Pending</span>
+                                    @endswitch
+                                </td>
+                                <td>
+                                    <div class="btn-group">
+                                        <a href="{{ route('prescriptions.show', $prescription) }}" 
+                                           class="btn btn-sm btn-info" title="View">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        @if($prescription->sync_status !== 'synced')
+                                            <a href="{{ route('prescriptions.edit', $prescription) }}" 
+                                               class="btn btn-sm btn-primary" title="Edit">
+                                                <i class="fas fa-edit"></i>
+                                            </a>
+                                        @endif
+                                        @if($prescription->sync_status === 'error')
+                                            <button type="button" 
+                                                    class="btn btn-sm btn-warning" 
+                                                    title="Retry Sync"
+                                                    onclick="retrySync({{ $prescription->id }})">
+                                                <i class="fas fa-sync"></i>
+                                            </button>
+                                        @endif
+                                    </div>
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="6" class="text-center py-4">
+                                    No prescriptions found.
+                                </td>
+                            </tr>
+                        @endforelse
+                    </tbody>
                 </table>
             </div>
         </div>
@@ -131,8 +142,31 @@
 @push('scripts')
 <script>
 function retrySync(prescriptionId) {
-    // This will be implemented when we work on the sync system
-    alert('Sync retry functionality will be implemented in Phase 4');
+    const button = $(event.target).closest('button');
+    button.prop('disabled', true)
+          .html('<i class="fas fa-spinner fa-spin"></i>');
+
+    $.ajax({
+        url: `/prescriptions/${prescriptionId}/resync`,
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': $('meta[name="csrf-token"]').attr('content')
+        },
+        success: function(response) {
+            if (response.success) {
+                location.reload();
+            } else {
+                alert('Sync failed: ' + response.message);
+                button.prop('disabled', false)
+                      .html('<i class="fas fa-sync"></i>');
+            }
+        },
+        error: function(xhr) {
+            alert('Error occurred during sync. Please try again.');
+            button.prop('disabled', false)
+                  .html('<i class="fas fa-sync"></i>');
+        }
+    });
 }
 </script>
 @endpush

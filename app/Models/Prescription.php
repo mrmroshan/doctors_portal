@@ -33,6 +33,7 @@ class Prescription extends Model
     ];
 
     protected $casts = [
+        'prescription_date' => 'date',
         'as_needed' => 'boolean',
         'sync_attempted_at' => 'datetime',
         'quantity' => 'integer',
