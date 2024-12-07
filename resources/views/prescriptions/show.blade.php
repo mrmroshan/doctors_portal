@@ -46,6 +46,7 @@
                         <table class="table table-bordered">
                             <thead>
                                 <tr>
+                                    <!-- <th>Type</th> -->
                                     <th>Medication</th>
                                     <th>Quantity</th>
                                     <th>Dosage</th>
@@ -56,11 +57,20 @@
                             <tbody>
                                 @foreach($prescription->medications as $medication)
                                     <tr>
+                                        <!-- <td>
+                                            <span class="badge bg-{{ $medication->type === 'odoo' ? 'primary' : 'info' }}">
+                                                {{ ucfirst($medication->type) }}
+                                            </span>
+                                        </td> -->
                                         <td>
-                                            {{ $medication->product_name ?? 'Unknown Product' }}
-                                            @if($medication->product_code)
-                                                <br>
-                                                <small class="text-muted">({{ $medication->product_code }})</small>
+                                            @if($medication->type === 'odoo')
+                                                {{ $medication->product_name ?? 'Unknown Product' }}
+                                                @if($medication->product_code)
+                                                    <br>
+                                                    <small class="text-muted">({{ $medication->product_code }})</small>
+                                                @endif
+                                            @else
+                                                {{ $medication->product }}
                                             @endif
                                         </td>
                                         <td>{{ $medication->quantity }}</td>
@@ -82,6 +92,8 @@
                     </div>
                 </div>
             </div>
+
+            <!-- ... keep the rest of the file unchanged ... -->
 
             <!-- Error Information -->
             @if($prescription->sync_status === 'error')

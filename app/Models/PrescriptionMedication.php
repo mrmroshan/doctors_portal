@@ -7,7 +7,12 @@ use Illuminate\Database\Eloquent\Model;
 class PrescriptionMedication extends Model
 {
     protected $fillable = [
+        'type',
         'product',
+        'is_custom',
+        'custom_name',
+        'custom_strength',
+        'custom_notes',
         'quantity',
         'dosage',
         'every',
@@ -15,9 +20,12 @@ class PrescriptionMedication extends Model
         'as_needed',
         'directions'
     ];
-
+    
     protected $casts = [
+        'is_custom' => 'boolean',
         'as_needed' => 'boolean',
+        'quantity' => 'integer',
+        'every' => 'integer'
     ];
 
     public function prescription()

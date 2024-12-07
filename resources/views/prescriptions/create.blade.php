@@ -3,33 +3,15 @@
 @section('content')
 <div class="container">
     <div class="card">
-        <div class="card-header">
-            <h4>Create New Prescription</h4>
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h4 class="mb-0">Create New Prescription</h4>
+            <a href="{{ route('prescriptions.index') }}" class="btn btn-secondary btn-sm">
+                <i class="fas fa-arrow-left"></i> Back
+            </a>
         </div>
 
         <div class="card-body">
-            <form action="{{ route('prescriptions.store') }}" method="POST">
-                @if(session('error'))
-                    <div class="alert alert-danger">
-                        {{ session('error') }}
-                    </div>
-                @endif
-
-                @if(session('warning'))
-                    <div class="alert alert-warning">
-                        {{ session('warning') }}
-                    </div>
-                @endif
-
-                @if ($errors->any())
-                    <div class="alert alert-danger">
-                        <ul class="mb-0">
-                            @foreach ($errors->all() as $error)
-                                <li>{{ $error }}</li>
-                            @endforeach
-                        </ul>
-                    </div>
-                @endif
+            <form action="{{ route('prescriptions.store') }}" method="POST" id="prescriptionForm">
                 @csrf
                 
                 <!-- Prescription Date -->
@@ -43,20 +25,23 @@
                     @enderror
                 </div>
 
-                <!-- Patient Selection with Create Option -->
+                <!-- Patient Selection -->
                 <div class="form-group mb-3">
                     <label for="patient_id">Patient <span class="text-danger">*</span></label>
                     <div class="input-group">
-                        <select name="patient_id" id="patient_id" class="form-control @error('patient_id') is-invalid @enderror">
+                        <select name="patient_id" id="patient_id" 
+                            class="form-control @error('patient_id') is-invalid @enderror" required>
                             <option value="">Select Patient</option>
                             @foreach($patients as $patient)
-                                <option value="{{ $patient->id }}" {{ old('patient_id') == $patient->id ? 'selected' : '' }}>
+                                <option value="{{ $patient->id }}" 
+                                    {{ old('patient_id') == $patient->id ? 'selected' : '' }}>
                                     {{ $patient->first_name }} {{ $patient->last_name }} - {{ $patient->phone }}
                                 </option>
                             @endforeach
                         </select>
-                        <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#newPatientModal">
-                            <i class="fas fa-plus"></i> New Patient
+                        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" 
+                            data-bs-target="#newPatientModal">
+                            <i class="fas fa-plus"></i>
                         </button>
                     </div>
                     @error('patient_id')
@@ -64,141 +49,141 @@
                     @enderror
                 </div>
 
-                <!-- Dynamic Medications List -->
+                <!-- Medications Section -->
                 <div class="card mb-3">
-                    <div class="card-header d-flex justify-content-between align-items-center">
+                    <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
                         <h5 class="mb-0">Medications</h5>
-                        <button type="button" class="btn btn-sm btn-primary" id="addMedication">
+                        <button type="button" class="btn btn-primary btn-sm" id="addMedication">
                             <i class="fas fa-plus"></i> Add Medication
                         </button>
                     </div>
                     <div class="card-body">
                         <div id="medications-container">
-                            <!-- Template for medication items -->
-                            <div class="medication-item mb-3 border-bottom pb-3" data-index="0">
-                                <div class="row">
-                                    <div class="col-md-6">
-                                        <div class="form-group mb-3">
-                                            <label>Medication <span class="text-danger">*</span></label>
-                                            <select name="medications[0][product]" class="form-control medication-select" required>
-                                                <option value="">Select Medication</option>
-                                                @foreach($medications as $medication)
-                                                    <option value="{{ $medication['id'] }}" 
-                                                        data-price="{{ $medication['list_price'] }}"
-                                                        data-available="{{ $medication['qty_available'] }}">
-                                                        {{ $medication['name'] }} 
-                                                        ({{ $medication['default_code'] }}) - 
-                                                        Stock: {{ $medication['qty_available'] }}
-                                                    </option>
-                                                @endforeach
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-6">
-                                        <div class="form-group mb-3">
-                                            <label>Quantity <span class="text-danger">*</span></label>
-                                            <input type="number" name="medications[0][quantity]" 
-                                                class="form-control" required min="1">
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="row">
-                                    <div class="col-md-4">
-                                        <div class="form-group mb-3">
-                                            <label>Dosage <span class="text-danger">*</span></label>
-                                            <input type="text" name="medications[0][dosage]" 
-                                                class="form-control" required>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="form-group mb-3">
-                                            <label>Every</label>
-                                            <input type="number" name="medications[0][every]" 
-                                                class="form-control period-every" min="1">
-                                        </div>
-                                    </div>
-                                    <div class="col-md-4">
-                                        <div class="form-group mb-3">
-                                            <label>Period</label>
-                                            <select name="medications[0][period]" class="form-control period-select">
-                                                <option value="">Select Period</option>
-                                                @foreach(['hour', 'hours', 'day', 'days', 'week', 'weeks'] as $period)
-                                                    <option value="{{ $period }}">{{ ucfirst($period) }}</option>
-                                                @endforeach
-                                            </select>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div class="row">
+                            <!-- Medication Template -->
+                            <div class="medication-item mb-4 pb-3 border-bottom" data-index="0">
+                                <!-- Medication Type Toggle -->
+                                <div class="row mb-3">
                                     <div class="col-12">
-                                        <div class="form-check mb-3">
-                                            <input type="checkbox" class="form-check-input" 
-                                                name="medications[0][as_needed]" value="1">
-                                            <label class="form-check-label">Take as needed</label>
-                                        </div>
-                                        <div class="form-group mb-3">
-                                            <label>Additional Directions <span class="text-danger">*</span></label>
-                                            <textarea name="medications[0][directions]" class="form-control" 
-                                                rows="2" required></textarea>
+                                        <label class="d-block mb-2">Medication Type <span class="text-danger">*</span></label>
+                                        <div class="btn-group medication-type-toggle" role="group">
+                                            <input type="radio" class="btn-check" name="medications[0][type]" 
+                                                value="odoo" id="type-odoo-0" checked>
+                                            <label class="btn btn-outline-primary" for="type-odoo-0">
+                                                <i class="fas fa-box-open"></i> Odoo Product
+                                            </label>
+
+                                            <input type="radio" class="btn-check" name="medications[0][type]" 
+                                                value="custom" id="type-custom-0">
+                                            <label class="btn btn-outline-primary" for="type-custom-0">
+                                                <i class="fas fa-pills"></i> Custom
+                                            </label>
                                         </div>
                                     </div>
                                 </div>
-                                <button type="button" class="btn btn-sm btn-danger remove-medication">Remove</button>
+
+                                <!-- Medication Fields -->
+                                <div class="medication-fields">
+                                    <!-- Odoo Product Fields -->
+                                    <div class="odoo-fields">
+                                        <div class="row">
+                                            <div class="col-md-12 mb-3">
+                                                <label>Select Medication <span class="text-danger">*</span></label>
+                                                <select name="medications[0][product_id]" class="form-control medication-select">
+                                                    <option value="">Select Medication</option>
+                                                    @foreach($medications as $medication)
+                                                        <option value="{{ $medication['id'] }}">
+                                                            {{ $medication['name'] }}
+                                                            ({{ $medication['default_code'] ?? 'N/A' }})
+                                                        </option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Custom Medication Fields -->
+                                    <div class="custom-fields" style="display: none;">
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <label>Medication Name <span class="text-danger">*</span></label>
+                                                <input type="text" name="medications[0][custom_name]" class="form-control">
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label>Strength/Form</label>
+                                                <input type="text" name="medications[0][custom_strength]" 
+                                                    class="form-control" placeholder="e.g., 500mg tablet">
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Common Fields -->
+                                    <div class="common-fields">
+                                        <div class="row">
+                                            <div class="col-md-6 mb-3">
+                                                <label>Quantity <span class="text-danger">*</span></label>
+                                                <input type="number" name="medications[0][quantity]" 
+                                                    class="form-control" required min="1">
+                                            </div>
+                                            <div class="col-md-6 mb-3">
+                                                <label>Dosage <span class="text-danger">*</span></label>
+                                                <input type="text" name="medications[0][dosage]" 
+                                                    class="form-control" required placeholder="e.g., 1 tablet">
+                                            </div>
+                                        </div>
+                                        
+                                        <!-- Schedule Fields -->
+                                        <div class="row">
+                                            <div class="col-md-4 mb-3">
+                                                <label>Every</label>
+                                                <input type="number" name="medications[0][every]" 
+                                                    class="form-control" min="1">
+                                            </div>
+                                            <div class="col-md-4 mb-3">
+                                                <label>Period</label>
+                                                <select name="medications[0][period]" class="form-control">
+                                                    <option value="">Select Period</option>
+                                                    <option value="hours">Hour(s)</option>
+                                                    <option value="days">Day(s)</option>
+                                                    <option value="weeks">Week(s)</option>
+                                                    <option value="months">Month(s)</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-md-4 mb-3">
+                                                <label>&nbsp;</label>
+                                                <div class="form-check mt-2">
+                                                    <input type="checkbox" class="form-check-input" 
+                                                        name="medications[0][as_needed]" id="as_needed_0">
+                                                    <label class="form-check-label" for="as_needed_0">As needed</label>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div class="row">
+                                            <div class="col-12 mb-3">
+                                                <label>Additional Directions</label>
+                                                <textarea name="medications[0][directions]" class="form-control" 
+                                                    rows="2" placeholder="Additional instructions or directions"></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Remove Button -->
+                                <div class="text-end mt-3">
+                                    <button type="button" class="btn btn-danger btn-sm remove-medication">
+                                        <i class="fas fa-trash"></i> Remove
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
 
                 <!-- Submit Button -->
-                <div class="form-group">
+                <div class="form-group text-end">
                     <button type="submit" class="btn btn-primary">Create Prescription</button>
-                    <a href="{{ route('prescriptions.index') }}" class="btn btn-secondary">Cancel</a>
                 </div>
             </form>
-        </div>
-    </div>
-</div>
-<!-- New Patient Modal -->
-<div class="modal fade" id="newPatientModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Add New Patient</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="newPatientForm">
-                    @csrf
-                    <div class="form-group mb-3">
-                        <label>First Name <span class="text-danger">*</span></label>
-                        <input type="text" name="first_name" class="form-control" required>
-                    </div>
-                    <div class="form-group mb-3">
-                        <label>Last Name <span class="text-danger">*</span></label>
-                        <input type="text" name="last_name" class="form-control" required>
-                    </div>
-                    <div class="form-group mb-3">
-                        <label>Date of Birth <span class="text-danger">*</span></label>
-                        <input type="date" name="date_of_birth" class="form-control" required>
-                    </div>
-                    <div class="form-group mb-3">
-                        <label>Phone <span class="text-danger">*</span></label>
-                        <input type="text" name="phone" class="form-control" required>
-                    </div>
-                    <div class="form-group mb-3">
-                        <label>Email</label>
-                        <input type="email" name="email" class="form-control">
-                    </div>
-                    <div class="form-group mb-3">
-                        <label>Address</label>
-                        <textarea name="address" class="form-control" rows="2"></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                <button type="button" class="btn btn-primary" id="savePatient">Save Patient</button>
-            </div>
         </div>
     </div>
 </div>
@@ -213,56 +198,33 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script>
 $(document).ready(function() {
-    // Initialize select2 for patient
+    // Initialize Select2 for patient selection
     $('#patient_id').select2({
         theme: 'bootstrap-5',
-        placeholder: 'Select Patient',
-        allowClear: true,
         width: '100%'
     });
 
-    // Initialize select2 for first medication
+    // Initialize first medication select
     initializeMedicationSelect($('.medication-select').first());
 
-    // Handle dynamic medication addition
     let medicationIndex = 0;
-    
-    $('#addMedication').click(function() {
-        medicationIndex++;
-        
-        // Clone the first medication item
-        let template = $('.medication-item').first().clone();
-        
-        // Clean up the cloned template
-        template.find('.select2-container').remove();
-        template.find('.text-warning, .text-danger').remove();
-        
-        // Update indices and clear values
-        template.find('input, select, textarea').each(function() {
-            let name = $(this).attr('name');
-            if (name) {
-                $(this).attr('name', name.replace('[0]', `[${medicationIndex}]`));
-            }
-            if ($(this).hasClass('medication-select')) {
-                $(this).val(null);
-            } else if ($(this).attr('type') === 'checkbox') {
-                $(this).prop('checked', false);
-            } else {
-                $(this).val('');
-            }
-        });
 
-        // Update data index
-        template.attr('data-index', medicationIndex);
-        
-        // Append the template
-        $('#medications-container').append(template);
-        
-        // Initialize select2 on the new medication select
-        initializeMedicationSelect(template.find('.medication-select'));
+    // Handle medication type toggle
+    $(document).on('change', '.medication-item input[type="radio"]', function() {
+        const medicationItem = $(this).closest('.medication-item');
+        const type = $(this).val();
+        handleMedicationTypeToggle(medicationItem, type);
     });
 
-    // Handle remove medication
+    // Add new medication
+    $('#addMedication').click(function() {
+        medicationIndex++;
+        const newItem = createNewMedicationItem(medicationIndex);
+        $('#medications-container').append(newItem);
+        initializeMedicationSelect(newItem.find('.medication-select'));
+    });
+
+    // Remove medication
     $(document).on('click', '.remove-medication', function() {
         if ($('.medication-item').length > 1) {
             $(this).closest('.medication-item').remove();
@@ -271,119 +233,141 @@ $(document).ready(function() {
         }
     });
 
-    // Handle medication selection change
-    $(document).on('change', '.medication-select', function() {
-        const selected = $(this).find(':selected');
-        const available = selected.data('available');
-        const quantityInput = $(this).closest('.medication-item')
-            .find('input[name$="[quantity]"]');
-        
-        // Remove existing messages
-        $(this).siblings('.text-warning, .text-danger').remove();
-        
-        if (!selected.val()) return;
-
-        // Set max quantity and show warnings
-        if (available !== undefined) {
-            quantityInput.attr('max', available);
-            
-            if (available <= 0) {
-                $(this).after('<div class="text-danger small">Out of stock</div>');
-            } else if (available < 5) {
-                $(this).after(`<div class="text-warning small">Low stock: ${available} units available</div>`);
-            }
-        }
-    });
-
     // Form validation
-    $('form').on('submit', function(e) {
-        let isValid = true;
-
-        // Validate medications exist
-        if ($('.medication-item').length === 0) {
-            alert('Please add at least one medication.');
-            isValid = false;
-        }
-
-        // Validate period fields
-        $('.period-every').each(function() {
-            const every = $(this).val();
-            const period = $(this).closest('.row').find('.period-select').val();
-            
-            if ((every && !period) || (!every && period)) {
-                alert('Both "Every" and "Period" fields must be filled if one is provided.');
-                isValid = false;
-                return false;
-            }
-        });
-
-        if (!isValid) {
+    $('#prescriptionForm').on('submit', function(e) {
+        if (!validateForm()) {
             e.preventDefault();
-            return false;
+            alert('Please fill in all required fields.');
         }
     });
 
-    // Handle new patient creation
-    $('#savePatient').click(function() {
-        const button = $(this);
-        const form = $('#newPatientForm');
-        const formData = new FormData(form[0]);
-        
-        button.prop('disabled', true);
-        
-        $.ajax({
-            url: '/api/patients',
-            method: 'POST',
-            data: formData,
-            processData: false,
-            contentType: false,
-            headers: {
-                'Accept': 'application/json'
-            },
-            success: function(response) {
-                if (response.success) {
-                    // Add new patient to select
-                    const newOption = new Option(
-                        `${response.patient.full_name} - ${response.patient.phone}`,
-                        response.patient.id,
-                        true,
-                        true
-                    );
-                    
-                    $('#patient_id')
-                        .find(`option[value='${response.patient.id}']`).remove()
-                        .end()
-                        .append(newOption)
-                        .trigger('change');
-
-                    // Reset and close
-                    form[0].reset();
-                    $('#newPatientModal').modal('hide');
-                }
-            },
-            error: function(xhr) {
-                const message = xhr.responseJSON?.message || 'Failed to create patient';
-                alert(message);
-            },
-            complete: function() {
-                button.prop('disabled', false);
-            }
-        });
+    // Clear validation state on input
+    $(document).on('input change', '.is-invalid', function() {
+        $(this).removeClass('is-invalid');
     });
 });
 
-// Helper function to initialize medication select
+// Initialize Select2 for medication selection
 function initializeMedicationSelect(element) {
-    if (element.hasClass('select2-hidden-accessible')) {
-        element.select2('destroy');
-    }
-    
     element.select2({
         theme: 'bootstrap-5',
-        placeholder: 'Select Medication',
-        allowClear: true,
-        width: '100%'
+        width: '100%',
+        placeholder: 'Select Medication'
     });
 }
+
+// Handle medication type toggle
+function handleMedicationTypeToggle(medicationItem, type) {
+    const odooFields = medicationItem.find('.odoo-fields');
+    const customFields = medicationItem.find('.custom-fields');
+
+    if (type === 'custom') {
+        odooFields.hide().find('select').prop('required', false);
+        customFields.show().find('input[name$="[custom_name]"]').prop('required', true);
+        // Clear Odoo selection
+        odooFields.find('select').val(null).trigger('change');
+    } else {
+        odooFields.show().find('select').prop('required', true);
+        customFields.hide().find('input').prop('required', false);
+        // Clear custom fields
+        customFields.find('input').val('');
+    }
+}
+
+// Create new medication item
+function createNewMedicationItem(index) {
+    const template = $('.medication-item').first().clone();
+    
+    // Clean up the template
+    template.find('.select2-container').remove();
+    template.find('.is-invalid').removeClass('is-invalid');
+    template.find('.invalid-feedback').remove();
+    
+    // Clear all input values
+    template.find('input[type="text"], input[type="number"], textarea').val('');
+    template.find('select').val('');
+    template.find('input[type="checkbox"]').prop('checked', false);
+    
+    // Update IDs and names
+    template.find('[name], [id], [for]').each(function() {
+        const element = $(this);
+        ['name', 'id', 'for'].forEach(attr => {
+            if (element.attr(attr)) {
+                element.attr(attr, element.attr(attr).replace(/\[\d+\]|[0-9]+$/, match => {
+                    return match.includes('[') ? `[${index}]` : index;
+                }));
+            }
+        });
+    });
+
+    // Reset radio buttons
+    template.find('input[type="radio"][value="odoo"]').prop('checked', true);
+    template.find('input[type="radio"][value="custom"]').prop('checked', false);
+
+    // Reset fields visibility
+    template.find('.odoo-fields').show();
+    template.find('.custom-fields').hide();
+
+    return template;
+}
+
+// Update form validation
+function validateForm() {
+    let isValid = true;
+    
+    $('.medication-item').each(function() {
+        const item = $(this);
+        const type = item.find('input[type="radio"]:checked').val();
+        
+        // Validate type-specific fields
+        if (type === 'odoo') {
+            const select = item.find('.medication-select');
+            if (!select.val()) {
+                select.addClass('is-invalid');
+                isValid = false;
+            }
+        } else {
+            const customName = item.find('input[name$="[custom_name]"]');
+            if (!customName.val()) {
+                customName.addClass('is-invalid');
+                isValid = false;
+            }
+        }
+
+        // Validate required common fields
+        const requiredFields = ['quantity', 'dosage'];
+        requiredFields.forEach(field => {
+            const input = item.find(`input[name$="[${field}]"]`);
+            if (!input.val()) {
+                input.addClass('is-invalid');
+                isValid = false;
+            }
+        });
+    });
+
+    return isValid;
+}
+
+// Handle stock availability
+$(document).on('change', '.medication-select', function() {
+    const selected = $(this).find(':selected');
+    const available = selected.data('available');
+    const quantityInput = $(this).closest('.medication-item').find('input[name$="[quantity]"]');
+    
+    // Remove any existing messages
+    $(this).siblings('.stock-message').remove();
+    
+    if (available !== undefined) {
+        if (available <= 0) {
+            $(this).after('<div class="text-danger small mt-1 stock-message">Out of stock</div>');
+            quantityInput.attr('max', 0);
+        } else {
+            quantityInput.attr('max', available);
+            if (available < 5) {
+                $(this).after(`<div class="text-warning small mt-1 stock-message">Low stock: ${available} remaining</div>`);
+            }
+        }
+    }
+});
 </script>
 @endpush

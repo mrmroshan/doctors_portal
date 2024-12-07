@@ -10,6 +10,7 @@ return new class extends Migration
     {
         Schema::create('prescription_medications', function (Blueprint $table) {
             $table->id();
+            $table->string('type'); // 'odoo' or 'custom'
             $table->foreignId('prescription_id')->constrained()->onDelete('cascade');
             $table->string('product');
             $table->integer('quantity');
