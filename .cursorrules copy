@@ -266,11 +266,11 @@ A web portal for doctors to manage prescriptions with Odoo integration for medic
   - [x] Basic prescription fields
   - [x] Relationship with patients
   - [x] Relationship with doctors
-- [x] Prescription Management
-  - [x] Create prescription form
-  - [x] Edit prescription functionality
-  - [x] Prescription history view
-  - [x] Search/filter prescriptions
+- [ ] Prescription Management
+  - [ ] Create prescription form
+  - [ ] Edit prescription functionality
+  - [ ] Prescription history view
+  - [ ] Search/filter prescriptions
 - [x] Prescription Fields
   - [x] Medication selection
   - [x] Quantity input
@@ -278,14 +278,14 @@ A web portal for doctors to manage prescriptions with Odoo integration for medic
   - [x] Description/notes
 
 ## Phase 4: Odoo Integration
-- [x] Odoo Connection Setup
-  - [x] API configuration
-  - [x] Authentication setup
-  - [x] Test connection
-- [x] Product Integration
-  - [x] Fetch medication list
-  - [x] Cache medication data
-  - [x] Update mechanism
+- [ ] Odoo Connection Setup
+  - [ ] API configuration
+  - [ ] Authentication setup
+  - [ ] Test connection
+- [ ] Product Integration
+  - [ ] Fetch medication list
+  - [ ] Cache medication data
+  - [ ] Update mechanism
 - [ ] Sales Order Integration
   - [ ] Map prescription to sales order
   - [ ] Create sales order in Odoo
