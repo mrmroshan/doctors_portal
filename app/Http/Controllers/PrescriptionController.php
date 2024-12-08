@@ -276,16 +276,18 @@ class PrescriptionController extends Controller
                 return back()->with('error', 'Cannot edit a prescription that has already been synced.');
             }
 
-            $validated = $request->validate([
-                'patient_id' => 'required|exists:patients,id',
+            // Validate request
+            $request->validate([
                 'prescription_date' => 'required|date',
+                'patient_id' => 'required|exists:patients,id',
                 'medications' => 'required|array|min:1',
-                'medications.*.product' => 'required|string|max:255',
-                'medications.*.quantity' => 'required|numeric|min:1',
-                'medications.*.dosage' => 'required|string|max:255',
-                'medications.*.every' => 'nullable|numeric|min:1',
-                'medications.*.period' => 'nullable|string|in:hour,hours,day,days,week,weeks',
-                'medications.*.as_needed' => 'boolean',
+                'medications.*.type' => 'required|in:odoo,custom',
+                'medications.*.product_id' => 'required_if:medications.*.type,odoo',
+                'medications.*.custom_name' => 'required_if:medications.*.type,custom',
+                'medications.*.quantity' => 'required|integer|min:1',
+                'medications.*.dosage' => 'required|string',
+                'medications.*.every' => 'nullable|integer|min:1',
+                'medications.*.period' => 'nullable|in:hours,days,weeks,months',
                 'medications.*.directions' => 'required|string'
             ]);
 
@@ -293,17 +295,23 @@ class PrescriptionController extends Controller
 
             try {
                 $prescription->update([
-                    'patient_id' => $validated['patient_id'],
-                    'prescription_date' => $validated['prescription_date']
+                    'patient_id' => $request->patient_id,
+                    'prescription_date' => $request->prescription_date
                 ]);
 
                 // Delete existing medications
                 $prescription->medications()->delete();
 
-                // Create new medications
-                foreach ($validated['medications'] as $medicationData) {
+                // Process medications
+                foreach ($request->medications as $medicationData) {
+                    // Determine the product value based on type
+                    $product = $medicationData['type'] === 'odoo' 
+                        ? $medicationData['product_id']
+                        : $medicationData['custom_name'];
+
                     $prescription->medications()->create([
-                        'product' => $medicationData['product'],
+                        'type' => $medicationData['type'],
+                        'product' => $product,
                         'quantity' => $medicationData['quantity'],
                         'dosage' => $medicationData['dosage'],
                         'every' => $medicationData['every'] ?? null,
@@ -344,6 +352,9 @@ class PrescriptionController extends Controller
                 ->with('error', 'Failed to update prescription: ' . $e->getMessage());
         }
     }
+
+
+
 
     public function destroy(Prescription $prescription)
     {

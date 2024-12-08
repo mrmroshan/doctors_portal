@@ -325,6 +325,82 @@ protected function logApiAction(string $action, array $data = []): void
 
 
 
+    /**
+     * Fetch sales orders from Odoo
+     * 
+     * @param array $filters Additional domain filters
+     * @param int $limit Maximum number of records to return
+     * @return array Formatted sales orders
+     * @throws OdooApiException
+     */
+    public function getSalesOrders(array $filters = [], int $limit = 100): array
+    {
+        try {
+            $this->ensureAuthenticated();
+            
+            // Base domain filters
+            $domain = [
+                ['state', '!=', 'cancel']  // Exclude cancelled orders
+            ];
+            
+            // Merge custom filters
+            if (!empty($filters)) {
+                $domain = array_merge($domain, $filters);
+            }
+            
+            $fields = [
+                'id',
+                'name',           // Order reference
+                'partner_id',     // Customer
+                'date_order',     // Order date
+                'amount_total',   // Total amount
+                'state',          // Status
+                'order_line',     // Order lines
+                'prescription_reference',  // Custom field for prescription reference
+                'doctor_id'       // Doctor reference
+            ];
+            
+            $this->logApiAction('getSalesOrders', [
+                'domain' => $domain,
+                'limit' => $limit
+            ]);
+            
+            $result = $this->search_read(
+                'sale.order',
+                $domain,
+                $fields,
+                $limit
+            );
+            
+            // Transform the result to match the expected format
+            return array_map(function ($order) {
+                return [
+                    'id' => $order['id'],
+                    'reference' => $order['name'],
+                    'customer' => $order['partner_id'] ? [
+                        'id' => $order['partner_id'][0],
+                        'name' => $order['partner_id'][1]
+                    ] : null,
+                    'date' => $order['date_order'],
+                    'total_amount' => $order['amount_total'],
+                    'status' => $order['state'],
+                    'order_lines' => $order['order_line'],
+                    'prescription_id' => $order['prescription_reference'] ?? null,
+                    'doctor_id' => $order['doctor_id'] ? $order['doctor_id'][0] : null
+                ];
+            }, $result);
+            
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch sales orders from Odoo', [
+                'error' => $e->getMessage(),
+                'filters' => $filters,
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw new OdooApiException('Failed to fetch sales orders: ' . $e->getMessage());
+        }
+    }
+
+
 
     // Base CRUD operations
     public function create(string $model, array $values): int

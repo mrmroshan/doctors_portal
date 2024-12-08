@@ -80,16 +80,12 @@
 
                                 <dt class="col-sm-4">Created Date</dt>
                                 <dd class="col-sm-8">
-                                    @if($patient->created_at)
-                                        {{ \Carbon\Carbon::parse($patient->created_at)->format('M d, Y H:i') }}
-                                    @endif
+                                    {{ $patient->created_at->format('M d, Y H:i') }}
                                 </dd>
 
                                 <dt class="col-sm-4">Last Updated</dt>
                                 <dd class="col-sm-8">
-                                    @if($patient->updated_at)
-                                        {{ \Carbon\Carbon::parse($patient->updated_at)->format('M d, Y H:i') }}
-                                    @endif
+                                    {{ $patient->updated_at->format('M d, Y H:i') }}
                                 </dd>
                             </dl>
                         </div>
@@ -114,8 +110,7 @@
                                 <thead>
                                     <tr>
                                         <th>Date</th>
-                                        <th>Medication</th>
-                                        <th>Dosage</th>
+                                        <th>Medications</th>
                                         <th>Status</th>
                                         <th>Actions</th>
                                     </tr>
@@ -123,49 +118,94 @@
                                 <tbody>
                                     @foreach($patient->prescriptions->sortByDesc('created_at') as $prescription)
                                         <tr>
+                                            <td>{{ $prescription->prescription_date->format('M d, Y') }}</td>
                                             <td>
-                                                @if($prescription->prescription_date)
-                                                    {{ \Carbon\Carbon::parse($prescription->prescription_date)->format('M d, Y') }}
-                                                @else
-                                                    <span class="text-muted">N/A</span>
-                                                @endif
+                                            @foreach($prescription->medications as $medication)
+                                                <div class="mb-2">
+                                                    @if($medication->type === 'odoo')
+                                                        <strong>
+                                                            @if(isset($medicationsLookup[$medication->product]))
+                                                                {{ $medicationsLookup[$medication->product]['name'] }}
+                                                                <small class="text-muted">
+                                                                    ({{ $medicationsLookup[$medication->product]['default_code'] }})
+                                                                </small>
+                                                            @else
+                                                                {{ $medication->product }}
+                                                                <small class="text-muted">(Product not found in Odoo)</small>
+                                                            @endif
+                                                        </strong>
+                                                    @else
+                                                        <strong>{{ $medication->product }}</strong>
+                                                        <small class="text-muted">(Custom)</small>
+                                                    @endif
+                                                    <br>
+                                                    <small class="text-muted">
+                                                        Qty: {{ $medication->quantity }} - 
+                                                        {{ $medication->dosage }}
+                                                        @if($medication->every && $medication->period)
+                                                            every {{ $medication->every }} {{ $medication->period }}
+                                                        @endif
+                                                        @if($medication->as_needed)
+                                                            (as needed)
+                                                        @endif
+                                                    </small>
+                                                    @if($medication->directions)
+                                                        <br>
+                                                        <small class="text-muted">
+                                                            {{ $medication->directions }}
+                                                        </small>
+                                                    @endif
+                                                </div>
+                                            @endforeach
                                             </td>
-                                            <td>{{ $prescription->product }}</td>
                                             <td>
-                                                {{ $prescription->dosage }}
-                                                @if($prescription->every && $prescription->period)
-                                                    every {{ $prescription->every }} {{ $prescription->period }}
-                                                @endif
-                                                @if($prescription->as_needed)
-                                                    (as needed)
-                                                @endif
-                                            </td>
-                                            <td>
-                                                <span class="badge bg-{{ $prescription->sync_status === 'synced' ? 'success' : ($prescription->sync_status === 'error' ? 'danger' : 'warning') }}">
-                                                    {{ ucfirst($prescription->sync_status) }}
-                                                </span>
+                                                @switch($prescription->sync_status)
+                                                    @case('synced')
+                                                        <span class="badge bg-success">Synced</span>
+                                                        @break
+                                                    @case('error')
+                                                        <span class="badge bg-danger" 
+                                                              title="{{ $prescription->sync_error }}">
+                                                            Error
+                                                        </span>
+                                                        @break
+                                                    @default
+                                                        <span class="badge bg-warning text-dark">Pending</span>
+                                                @endswitch
                                             </td>
                                             <td>
                                                 <div class="btn-group btn-group-sm">
                                                     <a href="{{ route('prescriptions.show', $prescription) }}" 
-                                                       class="btn btn-info">
+                                                       class="btn btn-info" 
+                                                       title="View Details">
                                                         <i class="fas fa-eye"></i>
                                                     </a>
                                                     @if($prescription->sync_status !== 'synced')
                                                         <a href="{{ route('prescriptions.edit', $prescription) }}" 
-                                                           class="btn btn-primary">
+                                                           class="btn btn-primary" 
+                                                           title="Edit">
                                                             <i class="fas fa-edit"></i>
                                                         </a>
                                                         <form action="{{ route('prescriptions.destroy', $prescription) }}" 
                                                               method="POST" 
-                                                              class="d-inline"
-                                                              onsubmit="return confirm('Are you sure you want to delete this prescription?');">
+                                                              class="d-inline">
                                                             @csrf
                                                             @method('DELETE')
-                                                            <button type="submit" class="btn btn-danger">
+                                                            <button type="submit" 
+                                                                    class="btn btn-danger" 
+                                                                    title="Delete"
+                                                                    onclick="return confirm('Are you sure you want to delete this prescription?')">
                                                                 <i class="fas fa-trash"></i>
                                                             </button>
                                                         </form>
+                                                    @endif
+                                                    @if($prescription->sync_status === 'error')
+                                                        <button type="button" 
+                                                                class="btn btn-warning" 
+                                                                title="Retry Sync"
+                                                                onclick="retrySync({{ $prescription->id }})">
+                                                            <i class="fas fa-sync"></i>
+                                                        </button>
                                                     @endif
                                                 </div>
                                             </td>
@@ -182,7 +222,7 @@
                 </div>
             </div>
 
-            <!-- Notes or Additional Information Card -->
+            <!-- Notes Card -->
             <div class="card">
                 <div class="card-header">
                     <h4 class="mb-0">Notes</h4>
@@ -225,19 +265,38 @@
 
 @push('scripts')
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // Add any JavaScript functionality here
-    
-    // Example: Confirm deletion
-    const deleteForms = document.querySelectorAll('form[onsubmit]');
-    deleteForms.forEach(form => {
-        form.addEventListener('submit', function(e) {
-            if (!confirm('Are you sure you want to delete this prescription?')) {
-                e.preventDefault();
-            }
-        });
+function retrySync(prescriptionId) {
+    if (!confirm('Are you sure you want to retry syncing this prescription?')) {
+        return;
+    }
+
+    const button = event.target.closest('button');
+    button.disabled = true;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+
+    fetch(`/prescriptions/${prescriptionId}/resync`, {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'Accept': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Sync failed: ' + data.message);
+            button.disabled = false;
+            button.innerHTML = '<i class="fas fa-sync"></i>';
+        }
+    })
+    .catch(error => {
+        alert('Error occurred during sync. Please try again.');
+        button.disabled = false;
+        button.innerHTML = '<i class="fas fa-sync"></i>';
     });
-});
+}
 </script>
 @endpush
 @endsection

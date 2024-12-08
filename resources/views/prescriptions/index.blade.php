@@ -10,35 +10,36 @@
         </a>
     </div>
 
-    <!-- Search and Filters -->
-    <div class="card mb-4">
-        <div class="card-body">
-            <form action="{{ route('prescriptions.index') }}" method="GET" class="row g-3">
-                <div class="col-md-4">
-                    <input type="text" name="search" class="form-control" 
-                           placeholder="Search patient name..." 
-                           value="{{ request('search') }}">
-                </div>
-                <div class="col-md-3">
-                    <select name="sync_status" class="form-control">
-                        <option value="">All Sync Status</option>
-                        <option value="pending" {{ request('sync_status') == 'pending' ? 'selected' : '' }}>Pending</option>
-                        <option value="synced" {{ request('sync_status') == 'synced' ? 'selected' : '' }}>Synced</option>
-                        <option value="error" {{ request('sync_status') == 'error' ? 'selected' : '' }}>Error</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <input type="date" name="date" class="form-control" 
-                           value="{{ request('date') }}">
-                </div>
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-secondary w-100">
-                        <i class="fas fa-search"></i> Search
-                    </button>
-                </div>
-            </form>
-        </div>
+<!-- Search and Filters -->
+<div class="card mb-4">
+    <div class="card-body">
+        <form action="{{ route('prescriptions.index') }}" method="GET" class="row g-3">
+            <div class="col-md-3">
+                <input type="text" name="search" class="form-control" 
+                       placeholder="Search patient name..." 
+                       value="{{ request('search') }}">
+            </div>
+            <div class="col-md-3">
+                <select name="sync_status" class="form-control">
+                    <option value="">All Sync Status</option>
+                    <option value="pending" {{ request('sync_status') == 'pending' ? 'selected' : '' }}>Pending</option>
+                    <option value="synced" {{ request('sync_status') == 'synced' ? 'selected' : '' }}>Synced</option>
+                    <option value="error" {{ request('sync_status') == 'error' ? 'selected' : '' }}>Error</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <input type="date" name="date" class="form-control" 
+                       value="{{ request('date') }}"
+                       placeholder="Filter by date">
+            </div>
+            <div class="col-md-3">
+                <button type="submit" class="btn btn-secondary w-100">
+                    <i class="fas fa-search"></i> Search
+                </button>
+            </div>
+        </form>
     </div>
+</div>
 
     @if(session('warning'))
         <div class="alert alert-warning">
@@ -47,91 +48,118 @@
     @endif
 
     <!-- Prescriptions List -->
-    <div class="card">
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-striped table-hover mb-0">
-                    <thead>
+<div class="card">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover mb-0">
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Patient</th>
+                        <th>Medications</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @forelse($prescriptions as $prescription)
                         <tr>
-                            <th>Date</th>
-                            <th>Patient</th>
-                            <th>Medications</th>
-                            <th>Quantity</th>
-                            <th>Sync Status</th>
-                            <th>Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($prescriptions as $prescription)
-                            <tr>
-                                <td>{{ $prescription->prescription_date->format('M d, Y') }}</td>
-                                <td>
-                                    <a href="{{ route('patients.show', $prescription->patient) }}">
-                                        {{ $prescription->patient->full_name }}
-                                    </a>
-                                </td>
-                                <td>
-                                    @foreach($prescription->medications as $medication)
-                                        <div class="mb-1">
+                            <td>{{ $prescription->prescription_date->format('M d, Y') }}</td>
+                            <td>
+                                <a href="{{ route('patients.show', $prescription->patient) }}">
+                                    {{ $prescription->patient->first_name }} {{ $prescription->patient->last_name }}
+                                </a>
+                            </td>
+                            <td>
+                                @foreach($prescription->medications as $medication)
+                                    <div class="mb-1">
+                                        @if($medication->type === 'odoo')
                                             {{ $medication->product_name ?? 'Unknown Product' }}
                                             @if($medication->product_code)
-                                                <br>
                                                 <small class="text-muted">({{ $medication->product_code }})</small>
                                             @endif
-                                        </div>
-                                    @endforeach
-                                </td>
-                                <td>
-                                    {{ $prescription->medications->count() }} 
-                                    {{ Str::plural('medication', $prescription->medications->count()) }}
-                                </td>
-                                <td>
-                                    @switch($prescription->sync_status)
-                                        @case('synced')
-                                            <span class="badge bg-success">Synced</span>
-                                            @break
-                                        @case('error')
-                                            <span class="badge bg-danger" title="{{ $prescription->sync_error }}">Error</span>
-                                            @break
-                                        @default
-                                            <span class="badge bg-warning text-dark">Pending</span>
-                                    @endswitch
-                                </td>
-                                <td>
-                                    <div class="btn-group">
-                                        <a href="{{ route('prescriptions.show', $prescription) }}" 
-                                           class="btn btn-sm btn-info" title="View">
-                                            <i class="fas fa-eye"></i>
-                                        </a>
-                                        @if($prescription->sync_status !== 'synced')
-                                            <a href="{{ route('prescriptions.edit', $prescription) }}" 
-                                               class="btn btn-sm btn-primary" title="Edit">
-                                                <i class="fas fa-edit"></i>
-                                            </a>
+                                        @else
+                                            {{ $medication->product }}
+                                            <small class="text-muted">(Custom)</small>
                                         @endif
-                                        @if($prescription->sync_status === 'error')
-                                            <button type="button" 
-                                                    class="btn btn-sm btn-warning" 
-                                                    title="Retry Sync"
-                                                    onclick="retrySync({{ $prescription->id }})">
-                                                <i class="fas fa-sync"></i>
-                                            </button>
-                                        @endif
+                                        <br>
+                                        <small class="text-muted">
+                                            Qty: {{ $medication->quantity }} - 
+                                            {{ $medication->dosage }}
+                                            @if($medication->every && $medication->period)
+                                                every {{ $medication->every }} {{ $medication->period }}
+                                            @endif
+                                            @if($medication->as_needed)
+                                                (as needed)
+                                            @endif
+                                        </small>
                                     </div>
-                                </td>
-                            </tr>
-                        @empty
-                            <tr>
-                                <td colspan="6" class="text-center py-4">
-                                    No prescriptions found.
-                                </td>
-                            </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
+                                @endforeach
+                            </td>
+                            <td>
+                                @switch($prescription->sync_status)
+                                    @case('synced')
+                                        <span class="badge bg-success">Synced</span>
+                                        @break
+                                    @case('error')
+                                        <span class="badge bg-danger" 
+                                              title="{{ $prescription->sync_error }}">
+                                            Error
+                                        </span>
+                                        @break
+                                    @default
+                                        <span class="badge bg-warning text-dark">Pending</span>
+                                @endswitch
+                            </td>
+                            <td>
+                                <div class="btn-group">
+                                    <a href="{{ route('prescriptions.show', $prescription) }}" 
+                                       class="btn btn-sm btn-info" 
+                                       title="View Details">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    @if($prescription->sync_status !== 'synced')
+                                        <a href="{{ route('prescriptions.edit', $prescription) }}" 
+                                           class="btn btn-sm btn-primary" 
+                                           title="Edit">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        <form action="{{ route('prescriptions.destroy', $prescription) }}" 
+                                              method="POST" 
+                                              class="d-inline">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit" 
+                                                    class="btn btn-sm btn-danger" 
+                                                    title="Delete"
+                                                    onclick="return confirm('Are you sure you want to delete this prescription?')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </form>
+                                    @endif
+                                    @if($prescription->sync_status === 'error')
+                                        <button type="button" 
+                                                class="btn btn-sm btn-warning" 
+                                                title="Retry Sync"
+                                                onclick="retrySync({{ $prescription->id }})">
+                                            <i class="fas fa-sync"></i>
+                                        </button>
+                                    @endif
+                                </div>
+                            </td>
+                        </tr>
+                    @empty
+                        <tr>
+                            <td colspan="5" class="text-center py-4">
+                                No prescriptions found.
+                            </td>
+                        </tr>
+                    @endforelse
+                </tbody>
+            </table>
         </div>
     </div>
+</div>
 
     <!-- Pagination -->
     <div class="mt-4">

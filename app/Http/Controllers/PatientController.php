@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Patient;
 use App\Services\OdooApi;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 
 class PatientController extends Controller
 {
@@ -116,13 +117,24 @@ class PatientController extends Controller
 
     public function show(Patient $patient)
     {
-        // Only check doctor authorization if user is a doctor
-        // Admins can view any patient
-        if (auth()->user()->isDoctor() && !$patient->hasDoctor(auth()->user())) {
-            abort(403, 'Unauthorized access to this patient.');
-        }
+        try {
+            // Fetch medications from Odoo with caching
+            $odooMedications = Cache::remember('odoo_medications', 600, function () {
+                return $this->odooApi->getMedicationList();
+            });
+            
+            // Convert to a lookup array with product ID as key
+            $medicationsLookup = collect($odooMedications)->keyBy('id')->all();
 
-        return view('patients.show', compact('patient'));
+            return view('patients.show', compact('patient', 'medicationsLookup'));
+
+        } catch (\Exception $e) {
+            Log::error('Error fetching Odoo medications: ' . $e->getMessage());
+            return view('patients.show', [
+                'patient' => $patient,
+                'medicationsLookup' => []
+            ])->with('warning', 'Unable to fetch medication details from Odoo.');
+        }
     }
 
 
@@ -168,6 +180,9 @@ class PatientController extends Controller
             ->with('success', 'Patient updated successfully.');
     }
 
+
+
+
     public function destroy(Patient $patient)
     {
         // Only check doctor authorization if user is a doctor
@@ -181,6 +196,10 @@ class PatientController extends Controller
         return redirect()->route('patients.index')
             ->with('success', 'Patient deleted successfully.');
     }
+
+
+
+
 
     public function search(Request $request)
     {
@@ -210,6 +229,9 @@ class PatientController extends Controller
 
         return response()->json($patients);
     }
+
+
+
 
     public function apiStore(Request $request)
     {

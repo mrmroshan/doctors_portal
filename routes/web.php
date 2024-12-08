@@ -131,31 +131,276 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 
     // Test medication list retrieval
     Route::get('/medications-test', function () {
-    try {
-        $odooApi = new OdooApi();
-        
-        // First verify authentication
-        $auth = $odooApi->authenticate();
-        
-        // Then get medications
-        $medications = $odooApi->getMedicationList([], 10); // Limit to 10 for testing
-        
-        return [
-            'status' => 'success',
-            'environment' => config('app.env'),
-            'total_medications' => count($medications),
-            'medications' => $medications,
-            'auth_status' => $auth ? 'authenticated' : 'failed'
-        ];
-    } catch (\Exception $e) {
-        return [
-            'status' => 'error',
-            'message' => $e->getMessage(),
-            'environment' => config('app.env'),
-            'trace' => config('app.debug') ? $e->getTraceAsString() : null
-        ];
-    }
-});
+        try {
+            $odooApi = new OdooApi();
+            
+            // First verify authentication
+            $auth = $odooApi->authenticate();
+            
+            // Then get medications
+            $medications = $odooApi->getMedicationList([], 10); // Limit to 10 for testing
+            
+            return [
+                'status' => 'success',
+                'environment' => config('app.env'),
+                'total_medications' => count($medications),
+                'medications' => $medications,
+                'auth_status' => $auth ? 'authenticated' : 'failed'
+            ];
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'environment' => config('app.env'),
+                'trace' => config('app.debug') ? $e->getTraceAsString() : null
+            ];
+        }
+    });
 
+
+
+
+
+    Route::get('/sales-orders-test/{filter?}', function ($filter = null) {
+        try {
+            $odooApi = new OdooApi();
+            
+            // Base filters - always exclude cancelled orders
+            $filters = [['state', '!=', 'cancel']];
+            
+            // Add date filters if specified
+            switch($filter) {
+                case 'today':
+                    $filters[] = ['date_order', '>=', date('Y-m-d 00:00:00')];
+                    $filters[] = ['date_order', '<=', date('Y-m-d 23:59:59')];
+                    break;
+                case 'this-week':
+                    $filters[] = ['date_order', '>=', date('Y-m-d 00:00:00', strtotime('monday this week'))];
+                    $filters[] = ['date_order', '<=', date('Y-m-d 23:59:59', strtotime('sunday this week'))];
+                    break;
+                case 'draft':
+                    $filters[] = ['state', '=', 'draft'];
+                    break;
+                case 'confirmed':
+                    $filters[] = ['state', '=', 'sale'];
+                    break;
+            }
+
+            // First get orders
+            $orders = $odooApi->search_read(
+                'sale.order',
+                $filters,
+                [
+                    'name',
+                    'partner_id',
+                    'date_order',
+                    'amount_total',
+                    'state',
+                    'order_line'
+                ],
+                50
+            );
+
+            // Then get order lines details
+            $orderLineIds = array_merge(...array_map(fn($order) => $order['order_line'], $orders));
+            $orderLines = !empty($orderLineIds) ? $odooApi->search_read(
+                'sale.order.line',
+                [['id', 'in', $orderLineIds]],
+                [
+                    'order_id',
+                    'product_id',
+                    'product_uom_qty',
+                    'price_unit',
+                    'price_total',
+                    'name'
+                ]
+            ) : [];
+
+            // Index order lines by ID for easier lookup
+            $orderLinesById = [];
+            foreach ($orderLines as $line) {
+                $orderLinesById[$line['id']] = $line;
+            }
+            
+            return [
+                'status' => 'success',
+                'filter_type' => $filter ?? 'all',
+                'total_orders' => count($orders),
+                'orders' => array_map(function($order) use ($orderLinesById) {
+                    return [
+                        'id' => $order['id'],
+                        'reference' => $order['name'],
+                        'customer' => $order['partner_id'] ? [
+                            'id' => $order['partner_id'][0],
+                            'name' => $order['partner_id'][1]
+                        ] : null,
+                        'date' => $order['date_order'],
+                        'total_amount' => $order['amount_total'],
+                        'status' => $order['state'],
+                        'order_lines' => array_map(function($lineId) use ($orderLinesById) {
+                            $line = $orderLinesById[$lineId] ?? null;
+                            return $line ? [
+                                'id' => $line['id'],
+                                'product' => $line['product_id'] ? [
+                                    'id' => $line['product_id'][0],
+                                    'name' => $line['product_id'][1]
+                                ] : null,
+                                'quantity' => $line['product_uom_qty'],
+                                'unit_price' => $line['price_unit'],
+                                'total_price' => $line['price_total'],
+                                'description' => $line['name']
+                            ] : null;
+                        }, $order['order_line'])
+                    ];
+                }, $orders)
+            ];
+            
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'filter_type' => $filter ?? 'all',
+                'trace' => config('app.debug') ? $e->getTraceAsString() : null
+            ];
+        }
+    });
+
+
+
+
+
+    /*
+
+    Route::get('/sales-orders-test/{filter?}', function ($filter = null) {
+        try {
+            $odooApi = new OdooApi();
+            
+            // Base filters - always exclude cancelled orders
+            $filters = [
+                ['state', '!=', 'cancel']
+            ];
+            
+            // Add date filters if specified
+            switch($filter) {
+                case 'today':
+                    $filters[] = ['date_order', '>=', date('Y-m-d 00:00:00')];
+                    $filters[] = ['date_order', '<=', date('Y-m-d 23:59:59')];
+                    break;
+                case 'this-week':
+                    $filters[] = ['date_order', '>=', date('Y-m-d 00:00:00', strtotime('monday this week'))];
+                    $filters[] = ['date_order', '<=', date('Y-m-d 23:59:59', strtotime('sunday this week'))];
+                    break;
+                case 'draft':
+                    $filters[] = ['state', '=', 'draft'];
+                    break;
+                case 'confirmed':
+                    $filters[] = ['state', '=', 'sale'];
+                    break;
+            }
+
+            // Get orders with expanded fields
+            $result = $odooApi->search_read(
+                'sale.order',
+                $filters,
+                [
+                    'name',
+                    'partner_id',
+                    'date_order',
+                    'amount_total',
+                    'state',
+                    'order_line'
+                ],
+                50
+            );
+            
+            return [
+                'status' => 'success',
+                'filter_type' => $filter ?? 'all',
+                'total_orders' => count($result),
+                'orders' => array_map(function($order) {
+                    return [
+                        'id' => $order['id'],
+                        'reference' => $order['name'],
+                        'customer' => $order['partner_id'] ? [
+                            'id' => $order['partner_id'][0],
+                            'name' => $order['partner_id'][1]
+                        ] : null,
+                        'date' => $order['date_order'],
+                        'total_amount' => $order['amount_total'],
+                        'status' => $order['state'],
+                        'order_lines' => $order['order_line']
+                    ];
+                }, $result)
+            ];
+            
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'filter_type' => $filter ?? 'all',
+                'trace' => config('app.debug') ? $e->getTraceAsString() : null
+            ];
+        }
+    });
+
+*/
+
+
+    /*
+    // Test sales orders retrieval
+    Route::get('/sales-orders-test', function () {
+        try {
+            $odooApi = new OdooApi();
+            
+            // Step 1: Test authentication
+            $authResult = $odooApi->authenticate();
+            
+            // Step 2: Try a simple search with minimal filters
+            $filters = [
+                ['state', '!=', 'cancel']
+            ];
+            
+            // Step 3: Get minimal fields first
+            $fields = [
+                'name',
+                'state',
+                'date_order'
+            ];
+            
+            // Step 4: Limit to just a few records
+            $result = $odooApi->search_read(
+                'sale.order',
+                $filters,
+                $fields,
+                5
+            );
+            
+            return [
+                'status' => 'success',
+                'auth_result' => $authResult,
+                'total_orders' => count($result),
+                'orders' => $result,
+                'environment' => config('app.env'),
+                'odoo_url' => config('odoo.url'),
+                'odoo_db' => config('odoo.db')
+            ];
+            
+        } catch (\Exception $e) {
+            return [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'environment' => config('app.env'),
+                'odoo_config' => [
+                    'url' => config('odoo.url'),
+                    'db' => config('odoo.db'),
+                    'username' => config('odoo.username'),
+                    // Don't expose password in production
+                    'password_length' => strlen(config('odoo.password'))
+                ],
+                'trace' => config('app.debug') ? $e->getTraceAsString() : null
+            ];
+        }
+    });
+    */
 
 });
