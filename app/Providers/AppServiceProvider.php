@@ -15,7 +15,21 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        //
+        $this->app->singleton(OdooApi::class, function ($app) {
+            return new OdooApi();
+        });
+    
+        $this->app->singleton(PatientService::class, function ($app) {
+            return new PatientService($app->make(OdooApi::class));
+        });
+    
+        $this->app->singleton(PrescriptionService::class, function ($app) {
+            return new PrescriptionService(
+                $app->make(OdooApi::class),
+                $app->make(PatientService::class)
+            );
+        });
+        
     }
 
     /**

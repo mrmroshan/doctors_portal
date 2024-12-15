@@ -14,6 +14,7 @@ class Prescription extends Model
     const STATUS_PENDING = 'pending';
     const STATUS_SYNCED = 'synced';
     const STATUS_ERROR = 'error';
+    const STATUS_NOT_REQUIRED = 'not_required';
 
     // Time period constants
     const PERIOD_HOUR = 'hour';
@@ -56,11 +57,6 @@ class Prescription extends Model
         return $this->hasMany(PrescriptionMedication::class);
     }
 
-    public function getMedicationsListAttribute()
-    {
-        return $this->medications->pluck('product')->join(', ');
-    }
-
     // Scopes
     public function scopePending($query)
     {
@@ -75,6 +71,20 @@ class Prescription extends Model
     public function scopeFailed($query)
     {
         return $query->where('sync_status', self::STATUS_ERROR);
+    }
+
+    public function scopeRequiresSync($query)
+    {
+        return $query->whereIn('sync_status', [
+            self::STATUS_PENDING,
+            self::STATUS_ERROR
+        ]);
+    }
+
+    // Attributes
+    public function getMedicationsListAttribute()
+    {
+        return $this->medications->pluck('product')->join(', ');
     }
 
     // Helper methods

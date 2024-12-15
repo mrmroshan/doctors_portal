@@ -71,6 +71,9 @@ class OdooSyncService
         }
     }
 
+
+
+
     /**
      * Prepare order lines for Odoo sales order
      *
@@ -91,12 +94,17 @@ class OdooSyncService
                 'product_id' => $medication->product,
                 'product_uom_qty' => $medication->quantity,
                 'name' => $this->buildProductDescription($medication),
+                'product_uom' => 1, // Assuming the default unit of measure
                 // Add any other required fields for Odoo order lines
             ];
         }
 
         return $orderLines;
     }
+
+
+
+
 
     /**
      * Create a sales order in Odoo
@@ -107,9 +115,28 @@ class OdooSyncService
      * @throws OdooSyncException
      */
     //@todo:remove 1 at the end
-    protected function createSalesOrder1(Prescription $prescription, array $orderLines): string
+    /********************************
+    protected function createSalesOrder(Prescription $prescription, array $orderLines): string
     {
         try {
+
+            $orderLines = [];
+
+            foreach ($prescription->medications as $medication) {
+
+                $productId = $medication->type === 'odoo' ? $medication->product : null;
+                $productName = $medication->type === 'custom' ? $medication->custom_name : null;
+
+                $orderLines[] = [
+                    'product_id' => $productId,
+                    'product_name' => $productName,
+                    'product_uom_qty' => $medication->quantity,
+                    'product_uom' => 1, // Assuming the default unit of measure
+                    // Add any other required fields for the order line
+                ];
+            }
+
+
             $response = Http::withHeaders([
                 'Authorization' => 'Bearer ' . $this->apiKey,
                 'Accept' => 'application/json',
@@ -143,6 +170,70 @@ class OdooSyncService
             throw new OdooSyncException('Failed to create sales order: ' . $e->getMessage());
         }
     }
+*//////////////////////
+
+    
+/**
+ * Create a sales order in Odoo
+ *
+ * @param Prescription $prescription
+ * @param array $orderLines
+ * @return string
+ * @throws OdooSyncException
+ */
+protected function createSalesOrder(Prescription $prescription, array $orderLines): string
+{
+    try {
+        $response = Http::withHeaders([
+            'Authorization' => 'Bearer ' . $this->apiKey,
+            'Accept' => 'application/json',
+        ])->post("{$this->baseUrl}/api/sale.order", [
+            'db' => $this->database,
+            'login' => $this->username,
+            'password' => $this->password,
+            'data' => [
+                'partner_id' => $prescription->patient->odoo_partner_id,
+                'date_order' => $prescription->prescription_date->format('Y-m-d'),
+                'prescription_id' => $prescription->id,
+                'doctor_id' => $prescription->doctor->odoo_user_id,
+                'order_line' => array_map(function ($line) {
+                    return [
+                        'product_id' => $line['product_id'],
+                        'product_uom_qty' => $line['product_uom_qty'],
+                        'price_unit' => $line['price_unit'] ?? 0,
+                        'name' => $line['name'],
+                        'product_uom' => $line['product_uom'] ?? 1,
+                        'tax_id' => $line['tax_id'] ?? [[6, 0, []]],
+                        // Add any other required fields for the order line
+                    ];
+                }, $orderLines),
+                'note' => $this->buildOrderNotes($prescription),
+            ]
+        ]);
+
+        if (!$response->successful()) {
+            throw new OdooSyncException('Failed to create sales order: ' . $response->body());
+        }
+
+        $data = $response->json();
+        
+        if (!isset($data['id'])) {
+            throw new OdooSyncException('Invalid response from Odoo: Order ID not found');
+        }
+
+        return (string) $data['id'];
+
+    } catch (\Exception $e) {
+        throw new OdooSyncException('Failed to create sales order: ' . $e->getMessage());
+    }
+}
+
+
+
+
+
+
+
 
     /**
      * Build product description for Odoo order line

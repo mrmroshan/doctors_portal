@@ -127,280 +127,243 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     });
 
 
-
-
-    // Test medication list retrieval
-    Route::get('/medications-test', function () {
-        try {
-            $odooApi = new OdooApi();
-            
-            // First verify authentication
-            $auth = $odooApi->authenticate();
-            
-            // Then get medications
-            $medications = $odooApi->getMedicationList([], 10); // Limit to 10 for testing
-            
-            return [
-                'status' => 'success',
-                'environment' => config('app.env'),
-                'total_medications' => count($medications),
-                'medications' => $medications,
-                'auth_status' => $auth ? 'authenticated' : 'failed'
-            ];
-        } catch (\Exception $e) {
-            return [
-                'status' => 'error',
-                'message' => $e->getMessage(),
-                'environment' => config('app.env'),
-                'trace' => config('app.debug') ? $e->getTraceAsString() : null
-            ];
-        }
-    });
+});
 
 
 
 
 
-    Route::get('/sales-orders-test/{filter?}', function ($filter = null) {
-        try {
-            $odooApi = new OdooApi();
-            
-            // Base filters - always exclude cancelled orders
-            $filters = [['state', '!=', 'cancel']];
-            
-            // Add date filters if specified
-            switch($filter) {
-                case 'today':
-                    $filters[] = ['date_order', '>=', date('Y-m-d 00:00:00')];
-                    $filters[] = ['date_order', '<=', date('Y-m-d 23:59:59')];
-                    break;
-                case 'this-week':
-                    $filters[] = ['date_order', '>=', date('Y-m-d 00:00:00', strtotime('monday this week'))];
-                    $filters[] = ['date_order', '<=', date('Y-m-d 23:59:59', strtotime('sunday this week'))];
-                    break;
-                case 'draft':
-                    $filters[] = ['state', '=', 'draft'];
-                    break;
-                case 'confirmed':
-                    $filters[] = ['state', '=', 'sale'];
-                    break;
-            }
 
-            // First get orders
-            $orders = $odooApi->search_read(
-                'sale.order',
+Route::get('/medications-test', function () {
+    try {
+        $odooApi = new OdooApi();
+        
+        // First verify authentication
+        $auth = $odooApi->authenticate();
+        
+        // Then get medications
+        $filters = [
+            ['active', '=', true],  // Only fetch active medications
+            // Add more filters if needed
+        ];
+        $fields = ['id', 'name', 'default_code', 'list_price'];  // Specify the fields to fetch
+        $limit = 10;  // Limit to 10 for testing
+        
+        $medications = $odooApi->call('/web/dataset/call_kw', [
+            'model' => 'product.product',
+            'method' => 'search_read',
+            'args' => [
                 $filters,
-                [
-                    'name',
-                    'partner_id',
-                    'date_order',
-                    'amount_total',
-                    'state',
-                    'order_line'
-                ],
-                50
-            );
+                $fields
+            ],
+            'kwargs' => [
+                'limit' => $limit
+            ]
+        ]);
+        
+        return response()->json([
+            'status' => 'success',
+            'environment' => config('app.env'),
+            'total_medications' => count($medications),
+            'medications' => $medications,
+            'auth_status' => $auth ? 'authenticated' : 'failed'
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'status' => 'error',
+            'message' => $e->getMessage(),
+            'environment' => config('app.env'),
+            'trace' => config('app.debug') ? $e->getTraceAsString() : null
+        ], 500);
+    }
+});
 
-            // Then get order lines details
-            $orderLineIds = array_merge(...array_map(fn($order) => $order['order_line'], $orders));
-            $orderLines = !empty($orderLineIds) ? $odooApi->search_read(
-                'sale.order.line',
-                [['id', 'in', $orderLineIds]],
-                [
-                    'order_id',
-                    'product_id',
-                    'product_uom_qty',
-                    'price_unit',
-                    'price_total',
-                    'name'
-                ]
-            ) : [];
 
-            // Index order lines by ID for easier lookup
-            $orderLinesById = [];
-            foreach ($orderLines as $line) {
-                $orderLinesById[$line['id']] = $line;
-            }
-            
-            return [
-                'status' => 'success',
-                'filter_type' => $filter ?? 'all',
-                'total_orders' => count($orders),
-                'orders' => array_map(function($order) use ($orderLinesById) {
-                    return [
-                        'id' => $order['id'],
-                        'reference' => $order['name'],
-                        'customer' => $order['partner_id'] ? [
-                            'id' => $order['partner_id'][0],
-                            'name' => $order['partner_id'][1]
-                        ] : null,
-                        'date' => $order['date_order'],
-                        'total_amount' => $order['amount_total'],
-                        'status' => $order['state'],
-                        'order_lines' => array_map(function($lineId) use ($orderLinesById) {
-                            $line = $orderLinesById[$lineId] ?? null;
-                            return $line ? [
-                                'id' => $line['id'],
-                                'product' => $line['product_id'] ? [
-                                    'id' => $line['product_id'][0],
-                                    'name' => $line['product_id'][1]
-                                ] : null,
-                                'quantity' => $line['product_uom_qty'],
-                                'unit_price' => $line['price_unit'],
-                                'total_price' => $line['price_total'],
-                                'description' => $line['name']
-                            ] : null;
-                        }, $order['order_line'])
-                    ];
-                }, $orders)
-            ];
-            
-        } catch (\Exception $e) {
-            return [
-                'status' => 'error',
-                'message' => $e->getMessage(),
-                'filter_type' => $filter ?? 'all',
-                'trace' => config('app.debug') ? $e->getTraceAsString() : null
-            ];
+
+
+  
+
+Route::get('/get_all_sales_orders/{filter?}', function ($filter = null) {
+    try {
+        $odooApi = new OdooApi();
+        
+        // Base filters - always exclude cancelled orders
+        $filters = [
+            ['state', '!=', 'cancel']
+        ];
+        
+        // Add date filters if specified
+        switch($filter) {
+            case 'today':
+                $filters[] = ['date_order', '>=', date('Y-m-d 00:00:00')];
+                $filters[] = ['date_order', '<=', date('Y-m-d 23:59:59')];
+                break;
+            case 'this-week':
+                $filters[] = ['date_order', '>=', date('Y-m-d 00:00:00', strtotime('monday this week'))];
+                $filters[] = ['date_order', '<=', date('Y-m-d 23:59:59', strtotime('sunday this week'))];
+                break;
+            case 'draft':
+                $filters[] = ['state', '=', 'draft'];
+                break;
+            case 'confirmed':
+                $filters[] = ['state', '=', 'sale'];
+                break;
         }
-    });
 
-
-
-
-
-    /*
-
-    Route::get('/sales-orders-test/{filter?}', function ($filter = null) {
-        try {
-            $odooApi = new OdooApi();
-            
-            // Base filters - always exclude cancelled orders
-            $filters = [
-                ['state', '!=', 'cancel']
-            ];
-            
-            // Add date filters if specified
-            switch($filter) {
-                case 'today':
-                    $filters[] = ['date_order', '>=', date('Y-m-d 00:00:00')];
-                    $filters[] = ['date_order', '<=', date('Y-m-d 23:59:59')];
-                    break;
-                case 'this-week':
-                    $filters[] = ['date_order', '>=', date('Y-m-d 00:00:00', strtotime('monday this week'))];
-                    $filters[] = ['date_order', '<=', date('Y-m-d 23:59:59', strtotime('sunday this week'))];
-                    break;
-                case 'draft':
-                    $filters[] = ['state', '=', 'draft'];
-                    break;
-                case 'confirmed':
-                    $filters[] = ['state', '=', 'sale'];
-                    break;
-            }
-
-            // Get orders with expanded fields
-            $result = $odooApi->search_read(
-                'sale.order',
+        $salesOrders = $odooApi->call('/web/dataset/call_kw', [
+            'model' => 'sale.order',
+            'method' => 'search_read',
+            'args' => [
                 $filters,
-                [
-                    'name',
-                    'partner_id',
-                    'date_order',
-                    'amount_total',
-                    'state',
-                    'order_line'
-                ],
-                50
-            );
-            
-            return [
-                'status' => 'success',
-                'filter_type' => $filter ?? 'all',
-                'total_orders' => count($result),
-                'orders' => array_map(function($order) {
-                    return [
-                        'id' => $order['id'],
-                        'reference' => $order['name'],
-                        'customer' => $order['partner_id'] ? [
-                            'id' => $order['partner_id'][0],
-                            'name' => $order['partner_id'][1]
-                        ] : null,
-                        'date' => $order['date_order'],
-                        'total_amount' => $order['amount_total'],
-                        'status' => $order['state'],
-                        'order_lines' => $order['order_line']
-                    ];
-                }, $result)
-            ];
-            
-        } catch (\Exception $e) {
-            return [
-                'status' => 'error',
-                'message' => $e->getMessage(),
-                'filter_type' => $filter ?? 'all',
-                'trace' => config('app.debug') ? $e->getTraceAsString() : null
-            ];
+                ['id', 'name', 'date_order', 'state', 'amount_total']
+            ],
+            'kwargs' => [
+                'order' => 'date_order desc',
+                'limit' => 10
+            ]
+        ]);
+
+        return response()->json($salesOrders);
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => $e->getMessage()
+        ], 500);
+    }
+});
+
+
+
+Route::get('/get-sales-order-data/{id}', function ($id) {
+    $odooApi = new OdooApi();
+
+    try {
+        $saleOrder = $odooApi->getSalesOrder($id);
+
+        if ($saleOrder) {
+            return response()->json([
+                'success' => true,
+                'data' => $saleOrder
+            ]);
+        } else {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sales order not found'
+            ], 404);
         }
-    });
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to fetch sales order',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+});
 
-*/
 
 
-    /*
-    // Test sales orders retrieval
-    Route::get('/sales-orders-test', function () {
-        try {
-            $odooApi = new OdooApi();
-            
-            // Step 1: Test authentication
-            $authResult = $odooApi->authenticate();
-            
-            // Step 2: Try a simple search with minimal filters
-            $filters = [
-                ['state', '!=', 'cancel']
-            ];
-            
-            // Step 3: Get minimal fields first
-            $fields = [
-                'name',
-                'state',
-                'date_order'
-            ];
-            
-            // Step 4: Limit to just a few records
-            $result = $odooApi->search_read(
-                'sale.order',
-                $filters,
-                $fields,
-                5
-            );
-            
-            return [
-                'status' => 'success',
-                'auth_result' => $authResult,
-                'total_orders' => count($result),
-                'orders' => $result,
-                'environment' => config('app.env'),
-                'odoo_url' => config('odoo.url'),
-                'odoo_db' => config('odoo.db')
-            ];
-            
-        } catch (\Exception $e) {
-            return [
-                'status' => 'error',
-                'message' => $e->getMessage(),
-                'environment' => config('app.env'),
-                'odoo_config' => [
-                    'url' => config('odoo.url'),
-                    'db' => config('odoo.db'),
-                    'username' => config('odoo.username'),
-                    // Don't expose password in production
-                    'password_length' => strlen(config('odoo.password'))
-                ],
-                'trace' => config('app.debug') ? $e->getTraceAsString() : null
-            ];
+
+
+
+Route::get('/test-create-sales-order', function () {
+    $odooApi = new OdooApi();
+
+    try {
+        // Prepare sales order data
+        $orderData = [
+            'partner_id' => 35812,  // Replace with a valid partner ID
+            'date_order' => date('Y-m-d H:i:s'),
+            'state' => 'draft',  // Set the state to 'draft'
+        ];
+
+        // Create the sales order
+        $saleOrderId = $odooApi->createSalesOrder($orderData);
+
+        // Add order lines
+        $orderLines = [
+            [
+                'product_id' => 68717,  // Replace with a valid product ID
+                'product_uom_qty' => 2,
+                'price_unit' => 18.85,
+            ],
+            [
+                'product_id' => 54186,  // Replace with a valid product ID
+                'product_uom_qty' => 1,
+                'price_unit' => 4,
+            ],
+        ];
+
+        foreach ($orderLines as $line) {
+            $odooApi->addOrderLine($saleOrderId, $line);
         }
-    });
-    */
 
+        // Fetch the newly created sales order
+        $saleOrder = $odooApi->getSalesOrder($saleOrderId);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Sales order created successfully',
+            'data' => $saleOrder
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to create sales order',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+});
+
+
+
+
+
+Route::get('/test-create-patient', function () {
+    $odooApi = new OdooApi();
+    
+    $patientData = [
+        'name' => 'Test Patient',
+        'phone' => '1234567890',
+        'email' => 'test@example.com',
+    ];
+    
+    try {
+        $partnerId = $odooApi->createPartner($patientData);
+        
+        // Fetch the newly created patient
+        $patient = $odooApi->getPartner($partnerId);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Patient created successfully',
+            'data' => $patient
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to create patient',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+});
+
+
+
+
+
+Route::get('/test-latest-patients', function () {
+    $odooApi = new OdooApi();
+    
+    try {
+        $latestPatients = $odooApi->getLatestPartners();
+        
+        return response()->json([
+            'success' => true,
+            'data' => $latestPatients
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage()
+        ], 500);
+    }
 });

@@ -9,6 +9,11 @@ class Patient extends Model
 {
     use HasFactory;
 
+    const SYNC_STATUS_PENDING = 'pending';
+    const SYNC_STATUS_SYNCED = 'synced';
+    const SYNC_STATUS_ERROR = 'error';
+
+
     protected $fillable = [
         'first_name',
         'last_name',
@@ -16,14 +21,23 @@ class Patient extends Model
         'email',
         'phone',
         'address',
+        'mobile',
+        'odoo_partner_id',
+        'sync_status',
+        'sync_error',
+        'last_synced_at'
     ];
 
     protected $casts = [
         'date_of_birth' => 'date',
         'created_at' => 'datetime',
-        'updated_at' => 'datetime'
+        'updated_at' => 'datetime',
     ];
 
+    protected $dates = [
+        'last_synced_at'
+    ];
+    
     // Relationships
     public function doctors()
     {

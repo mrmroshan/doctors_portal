@@ -18,50 +18,57 @@ class OdooApi
     protected ?int $uid = null;
     protected ?string $session_id = null;
     
-    // Cache duration for product list (10 minutes)
-    const CACHE_DURATION = 600;
+    private const MAX_RETRIES = 2;
+    private const CACHE_DURATION = 600; // 10 minutes
+    private $retryCount = 0;
 
     public function __construct()
-{
-    $this->client = new Client([
-        'base_uri' => config('odoo.url'),
-        'timeout'  => 30,
-        'verify' => config('odoo.verify_ssl', true)
-    ]);
-    
-    $this->db = config('odoo.db');
-    $this->username = config('odoo.username');
-    $this->password = config('odoo.password');
-}
-
-// Add environment helper method
-protected function isProduction(): bool
-{
-    return config('app.env') === 'production';
-}
-
-
-
-
-
-// Add logging enhancement
-protected function logApiAction(string $action, array $data = []): void
-{
-    Log::info("Odoo API {$action} in " . ($this->isProduction() ? 'PRODUCTION' : 'STAGING'), [
-        'action' => $action,
-        'environment' => config('app.env'),
-        'data' => $data
-    ]);
-}
-
-
-
-
-
-    private function ensureAuthenticated(): void
     {
-        if (!$this->uid || !$this->session_id) {
-            $this->authenticate();
+        $this->client = new Client([
+            'base_uri' => config('odoo.url'),
+            'timeout'  => 30,
+            'verify' => config('odoo.verify_ssl', true)
+        ]);
+        
+        $this->db = config('odoo.db');
+        $this->username = config('odoo.username');
+        $this->password = config('odoo.password');
+    }
+
+    
+    
+
+
+
+    /**
+     * Get product data from Odoo
+     *
+     * @param int $productId
+     * @return array|null
+     */
+    public function getProductData(int $productId)
+    {
+        try {
+            $result = $this->call('/web/dataset/call_kw', [
+                'model' => 'product.product',
+                'method' => 'search_read',
+                'args' => [
+                    [['id', '=', $productId]],
+                    ['id', 'name', 'default_code', 'list_price']
+                ],
+                'kwargs' => [
+                    'context' => ['lang' => 'en_US']
+                ]
+            ]);
+
+            return $result[0] ?? null;
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch product data from Odoo', [
+                'product_id' => $productId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw new OdooApiException('Failed to fetch product data: ' . $e->getMessage());
         }
     }
 
@@ -69,110 +76,66 @@ protected function logApiAction(string $action, array $data = []): void
 
 
 
-    public function authenticate(): array
+
+    /**
+     * Get list of medications from Odoo
+     */
+    public function getMedicationList()
     {
         try {
-            $authData = [
-                'jsonrpc' => '2.0',
-                'method' => 'call',
-                'params' => [
-                    'db' => $this->db,
-                    'login' => $this->username,
-                    'password' => $this->password,
+            $this->retryCount = 0;
+    
+            $result = $this->call('/web/dataset/call_kw', [
+                'model' => 'product.product',
+                'method' => 'search_read',
+                'args' => [
+                    [
+                        ['type', '=', 'product'],  // Only physical products
+                        ['sale_ok', '=', true],    // Can be sold
+                        ['active', '=', true]      // Active products only
+                    ],
+                    [
+                        'id',
+                        'name',
+                        'default_code',  // SKU/Internal Reference
+                        'list_price',    // Include the list_price field
+                        'qty_available'
+                    ]
                 ],
-                'id' => mt_rand(1, 999999999)
-            ];
-    
-            Log::info('Attempting Odoo authentication', [
-                'url' => config('odoo.url'),
-                'db' => $this->db,
-                'username' => $this->username,
-                'password_length' => strlen($this->password),
-            ]);
-    
-            $response = $this->client->post('/web/session/authenticate', [
-                'json' => $authData,
-                'headers' => [
-                    'Accept' => 'application/json',
-                    'Content-Type' => 'application/json',
+                'kwargs' => [
+                    'context' => ['lang' => 'en_US']
                 ]
             ]);
     
-            $result = json_decode($response->getBody()->getContents(), true);
+            // Transform the result to a more usable format
+            return collect($result)->map(function ($product) {
+                return [
+                    'id' => $product['id'],
+                    'name' => $product['name'],
+                    'default_code' => $product['default_code'] ?? '',
+                    'price' => $product['list_price'] ?? 0,
+                    'qty_available' => $product['qty_available'] ?? 0
+                ];
+            })->values()->all();
     
-            Log::info('Odoo authentication response', [
-                'status_code' => $response->getStatusCode(),
-                'has_result' => isset($result['result']),
-                'has_error' => isset($result['error']),
-                'raw_response' => $result
-            ]);
-    
-            if (!isset($result['result'])) {
-                throw new OdooApiException('Invalid authentication response: ' . json_encode($result));
-            }
-    
-            if (isset($result['error'])) {
-                throw new OdooApiException("Authentication failed: {$result['error']['message']}");
-            }
-    
-            $this->session_id = $response->getHeader('Set-Cookie')[0] ?? null;
-            $this->uid = $result['result']['uid'] ?? null;
-    
-            return $result['result'];
         } catch (\Exception $e) {
-            Log::error('Odoo authentication failed', [
+            Log::error('Failed to fetch medications from Odoo', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString()
             ]);
-            throw new OdooApiException('Failed to authenticate with Odoo: ' . $e->getMessage());
+            throw new OdooApiException('Failed to fetch medications: ' . $e->getMessage());
         }
     }
 
 
 
     /**
-     * Fetch medication list from Odoo
+     * Get cached medication list
      */
-    public function getMedicationList(array $filters = [], int $limit = 100): array
+    public function getCachedMedicationList()
     {
-        $cacheKey = 'odoo_medications_' . md5(serialize($filters));
-    
-        return Cache::remember($cacheKey, self::CACHE_DURATION, function () use ($filters, $limit) {
-            // Modified domain to use basic product filters first
-            $domain = [
-                ['type', '=', 'product'],  // or 'consu' for consumables
-                ['sale_ok', '=', true],
-                ['active', '=', true]
-            ];
-    
-            // Add custom filters to domain
-            if (!empty($filters)) {
-                $domain = array_merge($domain, $filters);
-            }
-    
-            $fields = [
-                'id',
-                'name',
-                'default_code', // SKU
-                'list_price',
-                'qty_available',
-                'virtual_available',
-                'description',
-                'detailed_type',
-                'uom_id',
-                // Removed image_1920 as it might be too large
-            ];
-    
-            try {
-                return $this->search_read('product.product', $domain, $fields, $limit);
-            } catch (\Exception $e) {
-                Log::error('Failed to fetch medications', [
-                    'error' => $e->getMessage(),
-                    'domain' => $domain,
-                    'fields' => $fields
-                ]);
-                throw new OdooApiException('Failed to fetch medications: ' . $e->getMessage());
-            }
+        return Cache::remember('odoo_medications', self::CACHE_DURATION, function () {
+            return $this->getMedicationList();
         });
     }
 
@@ -180,308 +143,401 @@ protected function logApiAction(string $action, array $data = []): void
 
 
 
-    /**
-     * Create a sales order from prescription
-     */
-    public function createSalesOrder(array $orderData): int
+
+    public function createSalesOrder(array $data)
     {
-        $this->ensureAuthenticated();
-
         try {
-            // Prepare order lines
-            $orderLines = array_map(function ($line) {
-                return [0, 0, [
-                    'product_id' => $line['product_id'],
-                    'product_uom_qty' => $line['quantity'],
-                    'price_unit' => $line['price_unit'],
-                    'name' => $line['description'] ?? '',
-                ]];
-            }, $orderData['order_lines']);
-
-            $salesOrder = [
-                'partner_id' => $orderData['customer_id'],
-                'order_line' => $orderLines,
-                'prescription_reference' => $orderData['prescription_id'],
-                'doctor_id' => $orderData['doctor_id'],
-                'note' => $orderData['notes'] ?? '',
-                'date_order' => date('Y-m-d H:i:s'),
+            $this->retryCount = 0;
+            
+            // Prepare minimal required data for sales order
+            $orderData = [
+                'partner_id' => $data['partner_id'],
+                'date_order' => $data['date_order'] ?? now()->format('Y-m-d H:i:s'),
+                'state' => 'draft',
+                'company_id' => $data['company_id'] ?? 1,  // Default company ID
+                'pricelist_id' => $data['pricelist_id'] ?? 1,  // Default price list
+                'user_id' => $data['user_id'] ?? $this->uid,  // Current authenticated user
             ];
-
-            $orderId = $this->create('sale.order', $salesOrder);
-
-            // Confirm the sale order
-            if ($orderData['auto_confirm'] ?? false) {
-                $this->call('action_confirm', 'sale.order', [[$orderId]]);
-            }
-
-            return $orderId;
+    
+            Log::info('Creating sales order in Odoo', ['data' => $orderData]);
+    
+            // Create the sales order using the correct format
+            $result = $this->call('/web/dataset/call_kw', [
+                'model' => 'sale.order',
+                'method' => 'create',
+                'args' => [$orderData],
+                'kwargs' => [
+                    'context' => [
+                        'lang' => 'en_US',
+                        'tz' => 'Asia/Riyadh',
+                        'uid' => $this->uid,
+                        'default_company_id' => $orderData['company_id']
+                    ]
+                ]
+            ]);
+    
+            Log::info('Sales order created successfully', ['sale_order_id' => $result]);
+            return $result;
+    
         } catch (\Exception $e) {
-            Log::error('Failed to create sales order in Odoo', [
+            Log::error('Failed to create sales order', [
                 'error' => $e->getMessage(),
-                'data' => $orderData
+                'data' => $data
             ]);
             throw new OdooApiException('Failed to create sales order: ' . $e->getMessage());
         }
     }
+    
 
-
-
-
-
-
-    /**
-     * Create or update customer in Odoo
-     */
-    public function syncCustomer(array $patientData): int
+    
+    public function addOrderLine(int $orderId, array $lineData)
     {
-        $this->ensureAuthenticated();
-
         try {
-            // Check if customer exists
-            $existing = $this->search_read(
-                'res.partner',
-                [
-                    ['phone', '=', $patientData['phone']],
-                    ['email', '=', $patientData['email']]
-                ],
-                ['id']
-            );
-
-            $customerData = [
-                'name' => $patientData['name'],
-                'phone' => $patientData['phone'],
-                'email' => $patientData['email'],
-                'street' => $patientData['address'] ?? '',
-                'city' => $patientData['city'] ?? '',
-                'is_patient' => true,
-                'customer_rank' => 1,
+            // Format the order line data according to Odoo's expected structure
+            $orderLine = [
+                'order_id'=> $orderId,
+                'product_id'=> $lineData['product_id'],
+                'name'=> $lineData['name'] ?? '/',  // Product description
+                'product_uom_qty'=> $lineData['product_uom_qty'],
+                'price_unit'=> $lineData['price_unit'],
+                'product_uom'=> $lineData['product_uom'] ?? 1,  // Default unit of measure
+                'tax_id'=> $lineData['tax_id'] ?? [[6, 0, []]]  // Default empty tax
             ];
-
-            if (!empty($existing)) {
-                $customerId = $existing[0]['id'];
-                $this->update('res.partner', $customerId, $customerData);
-                return $customerId;
-            }
-
-            return $this->create('res.partner', $customerData);
-        } catch (\Exception $e) {
-            Log::error('Failed to sync customer with Odoo', [
-                'error' => $e->getMessage(),
-                'data' => $patientData
+    
+            Log::info('Adding order line to sales order', [
+                'order_id' => $orderId,
+                'line_data' => $orderLine
             ]);
-            throw new OdooApiException('Failed to sync customer: ' . $e->getMessage());
+    
+            $result = $this->call('/web/dataset/call_kw', [
+                'model' => 'sale.order.line',
+                'method' => 'create',
+                'args' => [$orderLine],
+                'kwargs' => [
+                    'context' => [
+                        'lang' => 'en_US',
+                        'tz' => 'Asia/Riyadh',
+                        'uid' => $this->uid
+                    ]
+                ]
+            ]);
+    
+            Log::info('Order line added successfully', [
+                'order_id' => $orderId,
+                'line_id' => $result
+            ]);
+    
+            return $result;
+    
+        } catch (\Exception $e) {
+            Log::error('Failed to add order line', [
+                'error' => $e->getMessage(),
+                'order_id' => $orderId,
+                'line_data' => $lineData
+            ]);
+            throw new OdooApiException('Failed to add order line: ' . $e->getMessage());
         }
     }
 
 
-
-
-
-
-    /**
-     * Check product availability
-     */
-    public function checkProductAvailability(array $productIds): array
+    
+    // Helper method to get sales order details
+    public function getSalesOrder(int $orderId)
     {
-        $this->ensureAuthenticated();
-
         try {
-            return $this->read(
-                'product.product',
-                $productIds,
-                ['id', 'name', 'qty_available', 'virtual_available', 'incoming_qty', 'outgoing_qty']
-            );
-        } catch (\Exception $e) {
-            Log::error('Failed to check product availability', [
-                'error' => $e->getMessage(),
-                'products' => $productIds
+            $result = $this->call('/web/dataset/call_kw', [
+                'model' => 'sale.order',
+                'method' => 'read',
+                'args' => [[$orderId]],
+                'kwargs' => [
+                    'fields' => [
+                        'name',
+                        'date_order',
+                        'partner_id',
+                        'amount_total',
+                        'state',
+                        'order_line'
+                    ]
+                ]
             ]);
-            throw new OdooApiException('Failed to check product availability: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Get order status
-     */
-    public function getOrderStatus(int $orderId): array
-    {
-        $this->ensureAuthenticated();
-
-        try {
-            return $this->read(
-                'sale.order',
-                [$orderId],
-                ['name', 'state', 'invoice_status', 'delivery_status']
-            )[0];
+    
+            return $result[0] ?? null;
+    
         } catch (\Exception $e) {
-            Log::error('Failed to get order status', [
+            Log::error('Failed to fetch sales order', [
                 'error' => $e->getMessage(),
                 'order_id' => $orderId
             ]);
-            throw new OdooApiException('Failed to get order status: ' . $e->getMessage());
+            throw new OdooApiException('Failed to fetch sales order: ' . $e->getMessage());
         }
     }
+
+
+
+
+
+
 
 
 
 
     /**
-     * Fetch sales orders from Odoo
-     * 
-     * @param array $filters Additional domain filters
-     * @param int $limit Maximum number of records to return
-     * @return array Formatted sales orders
-     * @throws OdooApiException
+     * Create a new partner in Odoo
      */
-    public function getSalesOrders(array $filters = [], int $limit = 100): array
-    {
-        try {
-            $this->ensureAuthenticated();
-            
-            // Base domain filters
-            $domain = [
-                ['state', '!=', 'cancel']  // Exclude cancelled orders
-            ];
-            
-            // Merge custom filters
-            if (!empty($filters)) {
-                $domain = array_merge($domain, $filters);
-            }
-            
-            $fields = [
-                'id',
-                'name',           // Order reference
-                'partner_id',     // Customer
-                'date_order',     // Order date
-                'amount_total',   // Total amount
-                'state',          // Status
-                'order_line',     // Order lines
-                'prescription_reference',  // Custom field for prescription reference
-                'doctor_id'       // Doctor reference
-            ];
-            
-            $this->logApiAction('getSalesOrders', [
-                'domain' => $domain,
-                'limit' => $limit
-            ]);
-            
-            $result = $this->search_read(
-                'sale.order',
-                $domain,
-                $fields,
-                $limit
-            );
-            
-            // Transform the result to match the expected format
-            return array_map(function ($order) {
-                return [
-                    'id' => $order['id'],
-                    'reference' => $order['name'],
-                    'customer' => $order['partner_id'] ? [
-                        'id' => $order['partner_id'][0],
-                        'name' => $order['partner_id'][1]
-                    ] : null,
-                    'date' => $order['date_order'],
-                    'total_amount' => $order['amount_total'],
-                    'status' => $order['state'],
-                    'order_lines' => $order['order_line'],
-                    'prescription_id' => $order['prescription_reference'] ?? null,
-                    'doctor_id' => $order['doctor_id'] ? $order['doctor_id'][0] : null
-                ];
-            }, $result);
-            
-        } catch (\Exception $e) {
-            Log::error('Failed to fetch sales orders from Odoo', [
-                'error' => $e->getMessage(),
-                'filters' => $filters,
-                'trace' => $e->getTraceAsString()
-            ]);
-            throw new OdooApiException('Failed to fetch sales orders: ' . $e->getMessage());
+/**
+ * Create a new partner in Odoo
+ */
+public function createPartner(array $data)
+{
+    try {
+        $this->retryCount = 0;
+        
+        // Prepare partner data according to Odoo's expected format
+        $partnerData = [
+            'name' => $data['name'],
+            'phone' => $data['phone'] ?? false,
+            'mobile' => $data['mobile'] ?? false,
+            'email' => $data['email'] ?? false,
+            'customer_rank' => 1,
+            'company_type' => 'person',
+            'type' => 'contact'  // Add this line
+        ];
+
+        Log::info('Creating partner in Odoo', ['data' => $partnerData]);
+
+        $result = $this->call('/web/dataset/call_kw', [
+            'model' => 'res.partner',
+            'method' => 'create',
+            'args' => [$partnerData],  // Note: args should be an array containing the data array
+            'kwargs' => [
+                'context' => [
+                    'lang' => 'en_US',
+                    'tz' => 'Asia/Riyadh',  // Adjust timezone as needed
+                    'tracking_disable' => true
+                ]
+            ]
+        ]);
+
+        if (!$result) {
+            throw new OdooApiException('Failed to create partner: No ID returned');
         }
+
+        Log::info('Partner created successfully', ['partner_id' => $result]);
+        return $result;
+
+    } catch (\Exception $e) {
+        Log::error('Failed to create partner', [
+            'error' => $e->getMessage(),
+            'data' => $data
+        ]);
+        throw new OdooApiException('Failed to create partner: ' . $e->getMessage());
     }
+}
+
+
+public function getPartner(int $id)
+{
+    try {
+        $result = $this->call('/web/dataset/call_kw', [
+            'model' => 'res.partner',
+            'method' => 'search_read',
+            'args' => [
+                [['id', '=', $id]],  // Search condition
+                ['id', 'name', 'phone', 'email']  // Fields to fetch
+            ],
+            'kwargs' => [
+                'limit' => 1
+            ]
+        ]);
+
+        return $result[0] ?? null;
+    } catch (\Exception $e) {
+        Log::error('Failed to fetch partner', [
+            'error' => $e->getMessage(),
+            'partner_id' => $id
+        ]);
+        throw new OdooApiException('Failed to fetch partner: ' . $e->getMessage());
+    }
+}
 
 
 
-    // Base CRUD operations
-    public function create(string $model, array $values): int
-    {
+public function getLatestPartners(int $limit = 100)
+{
+    try {
+        $result = $this->call('/web/dataset/call_kw', [
+            'model' => 'res.partner',
+            'method' => 'search_read',
+            'args' => [
+                [
+                    ['type', '=', 'contact'],
+                    ['customer_rank', '>', 0]
+                ],  // Search conditions
+                ['id', 'name', 'phone', 'email', 'create_date']  // Fields to fetch
+            ],
+            'kwargs' => [
+                'order'=> 'create_date desc',
+                'limit' => $limit
+            ]
+        ]);
+
+        return $result;
+    } catch (\Exception $e) {
+        Log::error('Failed to fetch latest partners', [
+            'error' => $e->getMessage(),
+            'limit' => $limit
+        ]);
+        throw new OdooApiException('Failed to fetch latest partners: ' . $e->getMessage());
+    }
+}
+
+
+
+
+/**
+ * Make an authenticated API call to Odoo
+ */
+public function call(string $endpoint, array $params, bool $allowRetry = true)
+{
+    try {
         $this->ensureAuthenticated();
-        return $this->call('create', $model, [$values]);
+
+        $requestData = [
+            'jsonrpc' => '2.0',
+            'method' => 'call',
+            'params' => $params,
+            'id' => mt_rand(1, 999999999)
+        ];
+
+        Log::info('Odoo API Request', [
+            'endpoint' => $endpoint,
+            'data' => $requestData
+        ]);
+
+        $response = $this->client->post($endpoint, [
+            'headers' => [
+                'Cookie' => $this->session_id,
+                'Content-Type' => 'application/json'
+            ],
+            'json' => $requestData
+        ]);
+
+        $responseBody = $response->getBody()->getContents();
+        $result = json_decode($responseBody, true);
+
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            throw new OdooApiException('Invalid JSON response: ' . json_last_error_msg());
+        }
+
+        // Handle session expiration
+        if ($this->isSessionExpired($result) && $allowRetry && $this->retryCount < self::MAX_RETRIES) {
+            $this->retryCount++;
+            $this->resetSession();
+            return $this->call($endpoint, $params, true);
+        }
+
+        if (isset($result['error'])) {
+            $errorMessage = $result['error']['data']['message'] 
+                ?? $result['error']['message'] 
+                ?? 'Unknown Odoo error';
+            throw new OdooApiException($errorMessage);
+        }
+
+        return $result['result'];
+
+    } catch (\Exception $e) {
+        Log::error('Odoo API call failed', [
+            'endpoint' => $endpoint,
+            'error' => $e->getMessage(),
+            'retry_count' => $this->retryCount
+        ]);
+        throw new OdooApiException($e->getMessage());
     }
+}
 
-    public function read(string $model, array $ids, array $fields): array
-    {
-        $this->ensureAuthenticated();
-        return $this->call('read', $model, [$ids, $fields]);
-    }
-
-    public function update(string $model, int $id, array $values): bool
-    {
-        $this->ensureAuthenticated();
-        return $this->call('write', $model, [[$id], $values]);
-    }
-
-    public function delete(string $model, int $id): bool
-    {
-        $this->ensureAuthenticated();
-        return $this->call('unlink', $model, [[$id]]);
-    }
-
-    public function search_read(string $model, array $domain = [], array $fields = [], int $limit = 100): array
-    {
-        $this->ensureAuthenticated();
-        return $this->call('search_read', $model, [$domain, $fields], ['limit' => $limit]);
-    }
-
-
-
-
-
-    private function call(string $method, string $model, array $args = [], array $kwargs = [])
+    /**
+     * Authenticate with Odoo
+     */
+    public function authenticate(): void
     {
         try {
-            $headers = [];
-            if ($this->session_id) {
-                $headers['Cookie'] = $this->session_id;
-            }
-
-            $response = $this->client->post('/web/dataset/call_kw', [
-                'headers' => $headers,
+            $response = $this->client->post('/web/session/authenticate', [
                 'json' => [
                     'jsonrpc' => '2.0',
                     'method' => 'call',
                     'params' => [
-                        'model' => $model,
-                        'method' => $method,
-                        'args' => $args,
-                        'kwargs' => $kwargs
+                        'db' => $this->db,
+                        'login' => $this->username,
+                        'password' => $this->password,
                     ],
                     'id' => mt_rand(1, 999999999)
-                ],
+                ]
             ]);
 
             $result = json_decode($response->getBody()->getContents(), true);
 
-            if ($result === null) {
-                throw new OdooApiException('Failed to decode JSON response: ' . json_last_error_msg());
+            if (!isset($result['result']) || !isset($result['result']['uid'])) {
+                throw new OdooApiException('Invalid authentication response');
             }
 
-            if (isset($result['error'])) {
-                if (strpos($result['error']['message'], 'Session Expired') !== false) {
-                    $this->authenticate();
-                    return $this->call($method, $model, $args, $kwargs);
-                }
-                throw new OdooApiException('API call failed: ' . $result['error']['message']);
+            $this->session_id = $response->getHeader('Set-Cookie')[0] ?? null;
+            $this->uid = $result['result']['uid'];
+
+            if (!$this->session_id || !$this->uid) {
+                throw new OdooApiException('Failed to obtain session information');
             }
 
-            return $result['result'];
-        } catch (\Exception $e) {
-            Log::error('Odoo API call failed', [
-                'method' => $method,
-                'model' => $model,
-                'error' => $e->getMessage()
+            Log::info('Authenticated with Odoo', [
+                'uid' => $this->uid,
+                'has_session' => !empty($this->session_id)
             ]);
-            throw new OdooApiException('API call failed: ' . $e->getMessage());
+
+        } catch (\Exception $e) {
+            Log::error('Authentication failed', ['error' => $e->getMessage()]);
+            throw new OdooApiException('Authentication failed: ' . $e->getMessage());
         }
     }
+
+    /**
+     * Check if session is expired
+     */
+    private function isSessionExpired(array $result): bool
+    {
+        return isset($result['error']) && 
+               (strpos($result['error']['message'] ?? '', 'Session expired') !== false ||
+                strpos($result['error']['data']['message'] ?? '', 'Session expired') !== false);
+    }
+
+    /**
+     * Reset session data
+     */
+    private function resetSession(): void
+    {
+        $this->uid = null;
+        $this->session_id = null;
+        Log::info('Session reset, will re-authenticate');
+    }
+
+    /**
+     * Ensure valid authentication
+     */
+    private function ensureAuthenticated(): void
+    {
+        if (!$this->uid || !$this->session_id) {
+            $this->authenticate();
+        }
+    }
+
+    /**
+     * Clear medication cache
+     */
+    public function clearMedicationCache(): void
+    {
+        Cache::forget('odoo_medications');
+    }
+
+
+
+
+
 }

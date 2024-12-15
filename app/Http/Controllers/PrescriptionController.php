@@ -10,13 +10,16 @@ use App\Services\OdooApi;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Services\PrescriptionService;  // Add this import
 
 class PrescriptionController extends Controller
 {
+    protected $prescriptionService;
     protected $odooApi;
 
-    public function __construct(OdooApi $odooApi)
+    public function __construct(PrescriptionService $prescriptionService, OdooApi $odooApi)
     {
+        $this->prescriptionService = $prescriptionService;
         $this->odooApi = $odooApi;
     }
 
@@ -109,11 +112,13 @@ class PrescriptionController extends Controller
         }
     }
 
-    public function store(Request $request)
-{
-    try {
-        // Validate basic prescription data
-        $request->validate([
+
+       /**
+     * Validate prescription data
+     */
+    private function validatePrescriptionData(Request $request)
+    {
+        return $request->validate([
             'prescription_date' => 'required|date',
             'patient_id' => 'required|exists:patients,id',
             'medications' => 'required|array|min:1',
@@ -125,60 +130,56 @@ class PrescriptionController extends Controller
             'medications.*.every' => 'nullable|integer|min:1',
             'medications.*.period' => 'nullable|in:hours,days,weeks,months',
             'medications.*.directions' => 'required|string',
+            'medications.*.as_needed' => 'nullable|boolean'
         ]);
+    }
 
-        DB::beginTransaction();
 
+    public function store(Request $request)
+    {
         try {
-            // Create prescription
-            $prescription = Prescription::create([
-                'prescription_date' => $request->prescription_date,
-                'patient_id' => $request->patient_id,
-                'created_by' => auth()->id(),
-                'sync_status' => 'pending'
-            ]);
-
-            // Process medications
-            foreach ($request->medications as $medicationData) {
-                // Determine the product value based on type
-                $product = $medicationData['type'] === 'odoo' 
-                    ? $medicationData['product_id']  // Use product_id for Odoo type
-                    : $medicationData['custom_name']; // Use custom_name for custom type
-
-                $prescription->medications()->create([
-                    'type' => $medicationData['type'],
-                    'product' => $product, // Set the product field
-                    'quantity' => $medicationData['quantity'],
-                    'dosage' => $medicationData['dosage'],
-                    'every' => $medicationData['every'] ?? null,
-                    'period' => $medicationData['period'] ?? null,
-                    'as_needed' => isset($medicationData['as_needed']),
-                    'directions' => $medicationData['directions']
-                ]);
-            }
-
-            DB::commit();
+            $validated = $this->validatePrescriptionData($request);
+            
+            $prescription = $this->prescriptionService->create($validated);
 
             return redirect()
                 ->route('prescriptions.show', $prescription)
                 ->with('success', 'Prescription created successfully.');
 
         } catch (\Exception $e) {
-            DB::rollBack();
-            throw $e;
+            return back()
+                ->withInput()
+                ->with('error', 'Failed to create prescription: ' . $e->getMessage());
         }
-
-    } catch (\Exception $e) {
-        Log::error('Failed to create prescription:', [
-            'error' => $e->getMessage(),
-            'trace' => $e->getTraceAsString()
-        ]);
-
-        return back()
-            ->withInput()
-            ->with('error', 'Failed to create prescription: ' . $e->getMessage());
     }
-}
+
+
+
+
+
+
+
+
+
+
+    
+
+    /**
+     * Format medications for Odoo sales order (only Odoo products)
+     */
+    private function formatMedicationsForOdoo($medications)
+    {
+        return $medications
+            ->where('type', 'odoo')  // Only include Odoo products
+            ->map(function ($medication) {
+                return [0, 0, [
+                    'product_id' => (int)$medication->product,
+                    'product_uom_qty' => $medication->quantity,
+                    'name' => $medication->directions
+                ]];
+            })
+            ->toArray();
+    }
 
 
 

@@ -92,7 +92,7 @@
                                                     <option value="">Select Medication</option>
                                                     @foreach($medications as $medication)
                                                         <option value="{{ $medication['id'] }}">
-                                                            {{ $medication['name'] }}
+                                                        {{ $medication['id'] }} - {{ $medication['name'] }} - {{  $medication['price'] }} 
                                                             ({{ $medication['default_code'] ?? 'N/A' }})
                                                         </option>
                                                     @endforeach
