@@ -25,6 +25,7 @@
                                     <th>Name</th>
                                     <th>Email</th>
                                     <th>Role</th>
+                                    <th>Odoo Doctor ID</th>
                                     <th>Created At</th>
                                     <th>Actions</th>
                                 </tr>
@@ -36,6 +37,7 @@
                                         <td>{{ $user->name }}</td>
                                         <td>{{ $user->email }}</td>
                                         <td>{{ $user->role }}</td>
+                                        <td>{{ $user->odoo_doctor_id ?? '-' }}</td>
                                         <td>{{ $user->created_at->format('Y-m-d') }}</td>
                                         <td>
                                             <a href="{{ route('users.edit', $user->id) }}" class="btn btn-sm btn-info">Edit</a>
@@ -48,7 +50,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="6" class="text-center">No users found.</td>
+                                        <td colspan="7" class="text-center">No users found.</td>
                                     </tr>
                                 @endforelse
                             </tbody>

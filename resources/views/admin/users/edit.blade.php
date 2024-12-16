@@ -66,6 +66,18 @@
                             @enderror
                         </div>
 
+                        {{-- Odoo Doctor ID field --}}
+                        <div class="mb-3 odoo-doctor-id" style="display: {{ (old('role', $user->role) == 'doctor') ? 'block' : 'none' }};">
+                            <label for="odoo_doctor_id" class="form-label">Odoo Doctor ID</label>
+                            <input type="text" class="form-control @error('odoo_doctor_id') is-invalid @enderror" 
+                                   id="odoo_doctor_id" name="odoo_doctor_id" value="{{ old('odoo_doctor_id', $user->odoo_doctor_id) }}">
+                            @error('odoo_doctor_id')
+                                <span class="invalid-feedback" role="alert">
+                                    <strong>{{ $message }}</strong>
+                                </span>
+                            @enderror
+                        </div>
+
                         <div class="mb-3">
                             <button type="submit" class="btn btn-primary">Update User</button>
                             <a href="{{ route('admin.users.index') }}" class="btn btn-secondary">Cancel</a>

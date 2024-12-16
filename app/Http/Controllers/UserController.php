@@ -28,25 +28,41 @@ class UserController extends Controller
 
 
 
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users',
-            'password' => 'required|string|min:8|confirmed',
-            'role' => 'required|in:doctor,admin',
-        ]);
+ // app/Http/Controllers/UserController.php
 
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            'role' => $validated['role'],
-        ]);
+public function store(Request $request)
+{
+    $validatedData = $request->validate([
+        'name' => 'required|string|max:255',
+        'email' => 'required|string|email|max:255|unique:users',
+        'password' => 'required|string|min:8|confirmed',
+        'role' => 'required|in:doctor,admin',
+    ]);
 
-        return redirect()->route('admin.users.index')
-                        ->with('status', 'User created successfully!');
-    }
+    // Get the odoo_doctor_id from the request
+    $odooDoctorId = $request->input('odoo_doctor_id');
+
+    // Check if the role is 'doctor'
+    $isDoctor = $request->input('role') === 'doctor';
+
+    // Log the values for debugging
+    \Log::info('Role: ' . $request->input('role'));
+    \Log::info('Odoo Doctor ID: ' . $odooDoctorId);
+    \Log::info('Is Doctor: ' . ($isDoctor ? 'true' : 'false'));
+
+    // Create the user with the validated data
+    $user = User::create([
+        'name' => $validatedData['name'],
+        'email' => $validatedData['email'],
+        'password' => Hash::make($validatedData['password']),
+        'role' => $validatedData['role'],
+        // Assign the odoo_doctor_id if the role is 'doctor'
+        'odoo_doctor_id' => $isDoctor ? $odooDoctorId : null,
+    ]);
+
+    // Redirect or return a response
+    return redirect()->route('admin.users.index')->with('success', 'User created successfully.');
+}
 
 
 
@@ -70,26 +86,32 @@ class UserController extends Controller
 
 
 
-    public function update(Request $request, User $user)
-    {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
-            'role' => 'required|in:doctor,admin',
+    // app/Http/Controllers/UserController.php
+
+public function update(Request $request, User $user)
+{
+    $validated = $request->validate([
+        'name' => 'required|string|max:255',
+        'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
+        'role' => 'required|in:doctor,admin',
+        'odoo_doctor_id' => $request->role === 'doctor' ? 'required|string' : '', // Add validation for odoo_doctor_id
+    ]);
+
+    if ($request->filled('password')) {
+        $request->validate([
+            'password' => 'required|string|min:8|confirmed',
         ]);
-
-        if ($request->filled('password')) {
-            $request->validate([
-                'password' => 'required|string|min:8|confirmed',
-            ]);
-            $validated['password'] = Hash::make($request->password);
-        }
-
-        $user->update($validated);
-
-        return redirect()->route('admin.users.index')
-                        ->with('status', 'User updated successfully!');
+        $validated['password'] = Hash::make($request->password);
     }
+
+    // Update the odoo_doctor_id based on the role
+    $validated['odoo_doctor_id'] = $request->role === 'doctor' ? $request->odoo_doctor_id : null;
+
+    $user->update($validated);
+
+    return redirect()->route('admin.users.index')
+                    ->with('status', 'User updated successfully!');
+}
 
 
 
