@@ -15,7 +15,7 @@ return [
             'submenu' => [
                 ['text' => 'New', 'url' => '/prescriptions/create'],                
                 ['text' => 'All', 'url' => '/prescriptions'],                
-                ['text' => 'Prescribed Products', 'url' => '/prescription/prescribed-products'],                
+                ['text' => 'Odoo', 'url' => '/prescription/odoo-prescriptions'],                
             ],
         ],
         [

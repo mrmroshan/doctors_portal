@@ -83,6 +83,70 @@ class PrescriptionController extends Controller
     }
 }
 
+
+
+public function odoo_index(Request $request)
+{
+    try {
+        $query = Prescription::with(['patient', 'doctor', 'medications'])
+            ->when(!auth()->user()->isAdmin(), function($query) {
+                $query->where('created_by', auth()->id());
+            });
+
+        // Search by patient name
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->whereHas('patient', function($q) use ($search) {
+                $q->where('first_name', 'like', "%{$search}%")
+                    ->orWhere('last_name', 'like', "%{$search}%");
+            });
+        }
+
+        // Filter by sync status
+        if ($request->filled('sync_status')) {
+            $query->where('sync_status', $request->sync_status);
+        }
+
+        // Filter by date
+        if ($request->filled('date')) {
+            $query->whereDate('created_at', $request->date);
+        }
+
+        $prescriptions = $query->latest()
+            ->paginate(15)
+            ->withQueryString();
+
+        // Fetch medications from Odoo with caching
+        $odooMedications = Cache::remember('odoo_medications', 600, function () {
+            return $this->odooApi->getMedicationList();
+        });
+        
+        // Convert to a lookup array with product ID as key
+        $medicationsLookup = collect($odooMedications)->keyBy('id')->all();
+
+        // Enhance each prescription's medications with Odoo data
+        foreach ($prescriptions as $prescription) {
+            $prescription->medications = collect($prescription->medications)->map(function ($medication) use ($medicationsLookup) {
+                if (isset($medicationsLookup[$medication->product])) {
+                    $odooMed = $medicationsLookup[$medication->product];
+                    $medication->product_name = $odooMed['name'];
+                    $medication->product_code = $odooMed['default_code'];
+                }
+                return $medication;
+            });
+        }
+
+        return view('prescriptions.index', compact('prescriptions'));
+
+    } catch (\Exception $e) {
+        Log::error('Error fetching Odoo medications for index: ' . $e->getMessage());
+        return view('prescriptions.index', compact('prescriptions'))
+            ->with('warning', 'Unable to fetch medication details from Odoo.');
+    }
+}
+
+
+
     public function create()
     {
         $user = auth()->user();

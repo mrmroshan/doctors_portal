@@ -143,20 +143,56 @@ class OdooApi
 
 
 
+    public function getDoctorIdByName(string $doctorName)
+{
+    try {
+        $result = $this->call('/web/dataset/call_kw', [
+            'model' => 'res.partner',
+            'method' => 'search_read',
+            'args' => [
+                [
+                    ['is_doctor', '=', true],
+                    ['name', 'ilike', $doctorName]
+                ],
+                ['id']
+            ],
+            'kwargs' => [
+                'limit' => 1
+            ]
+        ]);
+
+        return $result ? $result[0]['id'] : null;
+    } catch (\Exception $e) {
+        Log::error('Failed to get doctor ID by name', [
+            'error' => $e->getMessage(),
+            'doctor_name' => $doctorName
+        ]);
+        throw new OdooApiException('Failed to get doctor ID by name: ' . $e->getMessage());
+    }
+}
+
+
+
+
+
 
     public function createSalesOrder(array $data)
     {
+
         try {
             $this->retryCount = 0;
             
             // Prepare minimal required data for sales order
             $orderData = [
-                'partner_id' => $data['partner_id'],
+                'partner_id' => (int)$data['partner_id'],
                 'date_order' => $data['date_order'] ?? now()->format('Y-m-d H:i:s'),
                 'state' => 'draft',
                 'company_id' => $data['company_id'] ?? 1,  // Default company ID
                 'pricelist_id' => $data['pricelist_id'] ?? 1,  // Default price list
                 'user_id' => $data['user_id'] ?? $this->uid,  // Current authenticated user
+                'doctor_id' => $data['doctor_id'],
+                'patient_phone' => $data['patient_phone'],
+                'patient' =>$data['patient'],
             ];
     
             Log::info('Creating sales order in Odoo', ['data' => $orderData]);
@@ -254,6 +290,9 @@ class OdooApi
                         'name',
                         'date_order',
                         'partner_id',
+                        'doctor_id',
+                        'patient_phone',
+                        'patient',
                         'amount_total',
                         'state',
                         'order_line'
@@ -277,6 +316,38 @@ class OdooApi
 
 
 
+    // app/Services/OdooApi.php
+/**
+ * Update an existing sales order in Odoo
+ *
+ * @param int $orderId
+ * @param array $data
+ * @return bool
+ * @throws \Exception
+ */
+public function updateSalesOrder(int $orderId, array $data): bool
+{
+    $this->ensureAuthenticated();
+
+    $params = [
+        'model' => 'sale.order',
+        'method' => 'write',
+        'args' => [
+            [$orderId],
+            $data
+        ],
+    ];
+
+    $response = $this->call('/web/dataset/call_kw', $params);
+
+    if ($response['status'] === 'success') {
+        return true;
+    } else {
+        throw new \Exception($response['error']['data']['message'] ?? 'Failed to update sales order');
+    }
+}
+
+
 
 
 
@@ -284,176 +355,178 @@ class OdooApi
     /**
      * Create a new partner in Odoo
      */
-/**
- * Create a new partner in Odoo
- */
-public function createPartner(array $data)
-{
-    try {
-        $this->retryCount = 0;
-        
-        // Prepare partner data according to Odoo's expected format
-        $partnerData = [
-            'name' => $data['name'],
-            'phone' => $data['phone'] ?? false,
-            'mobile' => $data['mobile'] ?? false,
-            'email' => $data['email'] ?? false,
-            'customer_rank' => 1,
-            'company_type' => 'person',
-            'type' => 'contact'  // Add this line
-        ];
+    public function createPartner(array $data)
+    {
+        try {
+            $this->retryCount = 0;
+            
+            // Prepare partner data according to Odoo's expected format
+            $partnerData = [
+                'name' => $data['name'],
+                'phone' => $data['phone'] ?? false,
+                'mobile' => $data['mobile'] ?? false,
+                'email' => $data['email'] ?? false,
+                'customer_rank' => 1,
+                'company_type' => 'person',
+                'type' => 'contact'  // Add this line
+            ];
 
-        Log::info('Creating partner in Odoo', ['data' => $partnerData]);
+            Log::info('Creating partner in Odoo', ['data' => $partnerData]);
 
-        $result = $this->call('/web/dataset/call_kw', [
-            'model' => 'res.partner',
-            'method' => 'create',
-            'args' => [$partnerData],  // Note: args should be an array containing the data array
-            'kwargs' => [
-                'context' => [
-                    'lang' => 'en_US',
-                    'tz' => 'Asia/Riyadh',  // Adjust timezone as needed
-                    'tracking_disable' => true
+            $result = $this->call('/web/dataset/call_kw', [
+                'model' => 'res.partner',
+                'method' => 'create',
+                'args' => [$partnerData],  // Note: args should be an array containing the data array
+                'kwargs' => [
+                    'context' => [
+                        'lang' => 'en_US',
+                        'tz' => 'Asia/Riyadh',  // Adjust timezone as needed
+                        'tracking_disable' => true
+                    ]
                 ]
-            ]
-        ]);
+            ]);
 
-        if (!$result) {
-            throw new OdooApiException('Failed to create partner: No ID returned');
+            if (!$result) {
+                throw new OdooApiException('Failed to create partner: No ID returned');
+            }
+
+            Log::info('Partner created successfully', ['partner_id' => $result]);
+            return $result;
+
+        } catch (\Exception $e) {
+            Log::error('Failed to create partner', [
+                'error' => $e->getMessage(),
+                'data' => $data
+            ]);
+            throw new OdooApiException('Failed to create partner: ' . $e->getMessage());
         }
-
-        Log::info('Partner created successfully', ['partner_id' => $result]);
-        return $result;
-
-    } catch (\Exception $e) {
-        Log::error('Failed to create partner', [
-            'error' => $e->getMessage(),
-            'data' => $data
-        ]);
-        throw new OdooApiException('Failed to create partner: ' . $e->getMessage());
     }
-}
 
 
-public function getPartner(int $id)
-{
-    try {
-        $result = $this->call('/web/dataset/call_kw', [
-            'model' => 'res.partner',
-            'method' => 'search_read',
-            'args' => [
-                [['id', '=', $id]],  // Search condition
-                ['id', 'name', 'phone', 'email']  // Fields to fetch
-            ],
-            'kwargs' => [
-                'limit' => 1
-            ]
-        ]);
+    public function getPartner(int $id)
+    {
+        try {
+            $result = $this->call('/web/dataset/call_kw', [
+                'model' => 'res.partner',
+                'method' => 'search_read',
+                'args' => [
+                    [['id', '=', $id]],  // Search condition
+                    ['id', 'name', 'phone', 'email']  // Fields to fetch
+                ],
+                'kwargs' => [
+                    'limit' => 1
+                ]
+            ]);
 
-        return $result[0] ?? null;
-    } catch (\Exception $e) {
-        Log::error('Failed to fetch partner', [
-            'error' => $e->getMessage(),
-            'partner_id' => $id
-        ]);
-        throw new OdooApiException('Failed to fetch partner: ' . $e->getMessage());
+            return $result[0] ?? null;
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch partner', [
+                'error' => $e->getMessage(),
+                'partner_id' => $id
+            ]);
+            throw new OdooApiException('Failed to fetch partner: ' . $e->getMessage());
+        }
     }
-}
 
 
 
-public function getLatestPartners(int $limit = 100)
-{
-    try {
-        $result = $this->call('/web/dataset/call_kw', [
-            'model' => 'res.partner',
-            'method' => 'search_read',
-            'args' => [
-                [
-                    ['type', '=', 'contact'],
-                    ['customer_rank', '>', 0]
-                ],  // Search conditions
-                ['id', 'name', 'phone', 'email', 'create_date']  // Fields to fetch
-            ],
-            'kwargs' => [
-                'order'=> 'create_date desc',
+    public function getLatestPartners(int $limit = 100)
+    {
+        try {
+            $result = $this->call('/web/dataset/call_kw', [
+                'model' => 'res.partner',
+                'method' => 'search_read',
+                'args' => [
+                    [
+                        ['type', '=', 'contact'],
+                        ['customer_rank', '>', 0]
+                    ],  // Search conditions
+                    ['id', 'name', 'phone', 'email', 'create_date']  // Fields to fetch
+                ],
+                'kwargs' => [
+                    'order'=> 'create_date desc',
+                    'limit' => $limit
+                ]
+            ]);
+
+            return $result;
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch latest partners', [
+                'error' => $e->getMessage(),
                 'limit' => $limit
-            ]
-        ]);
-
-        return $result;
-    } catch (\Exception $e) {
-        Log::error('Failed to fetch latest partners', [
-            'error' => $e->getMessage(),
-            'limit' => $limit
-        ]);
-        throw new OdooApiException('Failed to fetch latest partners: ' . $e->getMessage());
+            ]);
+            throw new OdooApiException('Failed to fetch latest partners: ' . $e->getMessage());
+        }
     }
-}
 
 
 
 
-/**
- * Make an authenticated API call to Odoo
- */
-public function call(string $endpoint, array $params, bool $allowRetry = true)
-{
-    try {
-        $this->ensureAuthenticated();
+    /**
+     * Make an authenticated API call to Odoo
+     */
+    public function call(string $endpoint, array $params, bool $allowRetry = true)
+    {
+        try {
+            $this->ensureAuthenticated();
 
-        $requestData = [
-            'jsonrpc' => '2.0',
-            'method' => 'call',
-            'params' => $params,
-            'id' => mt_rand(1, 999999999)
-        ];
+            $requestData = [
+                'jsonrpc' => '2.0',
+                'method' => 'call',
+                'params' => $params,
+                'id' => mt_rand(1, 999999999)
+            ];
 
-        Log::info('Odoo API Request', [
-            'endpoint' => $endpoint,
-            'data' => $requestData
-        ]);
+            Log::info('Odoo API Request', [
+                'endpoint' => $endpoint,
+                'data' => $requestData
+            ]);
 
-        $response = $this->client->post($endpoint, [
-            'headers' => [
-                'Cookie' => $this->session_id,
-                'Content-Type' => 'application/json'
-            ],
-            'json' => $requestData
-        ]);
+            $response = $this->client->post($endpoint, [
+                'headers' => [
+                    'Cookie' => $this->session_id,
+                    'Content-Type' => 'application/json'
+                ],
+                'json' => $requestData
+            ]);
 
-        $responseBody = $response->getBody()->getContents();
-        $result = json_decode($responseBody, true);
+            $responseBody = $response->getBody()->getContents();
+            $result = json_decode($responseBody, true);
 
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new OdooApiException('Invalid JSON response: ' . json_last_error_msg());
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new OdooApiException('Invalid JSON response: ' . json_last_error_msg());
+            }
+
+            // Handle session expiration
+            if ($this->isSessionExpired($result) && $allowRetry && $this->retryCount < self::MAX_RETRIES) {
+                $this->retryCount++;
+                $this->resetSession();
+                return $this->call($endpoint, $params, true);
+            }
+
+            if (isset($result['error'])) {
+                $errorMessage = $result['error']['data']['message'] 
+                    ?? $result['error']['message'] 
+                    ?? 'Unknown Odoo error';
+                throw new OdooApiException($errorMessage);
+            }
+
+            return $result['result'];
+
+        } catch (\Exception $e) {
+            Log::error('Odoo API call failed', [
+                'endpoint' => $endpoint,
+                'error' => $e->getMessage(),
+                'retry_count' => $this->retryCount
+            ]);
+            throw new OdooApiException($e->getMessage());
         }
-
-        // Handle session expiration
-        if ($this->isSessionExpired($result) && $allowRetry && $this->retryCount < self::MAX_RETRIES) {
-            $this->retryCount++;
-            $this->resetSession();
-            return $this->call($endpoint, $params, true);
-        }
-
-        if (isset($result['error'])) {
-            $errorMessage = $result['error']['data']['message'] 
-                ?? $result['error']['message'] 
-                ?? 'Unknown Odoo error';
-            throw new OdooApiException($errorMessage);
-        }
-
-        return $result['result'];
-
-    } catch (\Exception $e) {
-        Log::error('Odoo API call failed', [
-            'endpoint' => $endpoint,
-            'error' => $e->getMessage(),
-            'retry_count' => $this->retryCount
-        ]);
-        throw new OdooApiException($e->getMessage());
     }
-}
+
+
+
+
+
 
     /**
      * Authenticate with Odoo
@@ -498,6 +571,10 @@ public function call(string $endpoint, array $params, bool $allowRetry = true)
         }
     }
 
+
+
+
+
     /**
      * Check if session is expired
      */
@@ -507,6 +584,9 @@ public function call(string $endpoint, array $params, bool $allowRetry = true)
                (strpos($result['error']['message'] ?? '', 'Session expired') !== false ||
                 strpos($result['error']['data']['message'] ?? '', 'Session expired') !== false);
     }
+
+
+
 
     /**
      * Reset session data
@@ -518,6 +598,9 @@ public function call(string $endpoint, array $params, bool $allowRetry = true)
         Log::info('Session reset, will re-authenticate');
     }
 
+
+
+
     /**
      * Ensure valid authentication
      */
@@ -527,6 +610,9 @@ public function call(string $endpoint, array $params, bool $allowRetry = true)
             $this->authenticate();
         }
     }
+
+
+
 
     /**
      * Clear medication cache

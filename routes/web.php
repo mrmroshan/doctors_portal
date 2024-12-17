@@ -33,6 +33,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Admin routes
     Route::middleware(['role:admin'])->group(function () {
+
         Route::get('/admin/dashboard', [HomeController::class, 'adminDashboard'])->name('admin.dashboard');
         Route::get('/admin/users', [UserController::class, 'index'])->name('admin.users.index');
         Route::get('/admin/users/create', [UserController::class, 'create'])->name('users.create');
@@ -50,6 +51,12 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware(['role:doctor,admin'])->group(function () {
         // Existing routes
         Route::resource('prescriptions', PrescriptionController::class);
+
+        Route::get('/prescription/odoo-prescriptions', [PrescriptionController::class,'odoo_index']);
+
+
+        
+
         Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
         Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
 
@@ -233,6 +240,59 @@ Route::get('/get_all_sales_orders/{filter?}', function ($filter = null) {
 
 
 
+
+
+Route::get('/get_sales_orders_by_doctor/{filter?}', function ($filter = null) {
+    try {
+        $odooApi = new OdooApi();
+
+        // Base filters - always exclude cancelled orders
+        $filters = [
+            ['state', '!=', 'cancel']
+        ];
+
+        // Add doctor filter if specified
+        if ($filter) {
+            if (is_numeric($filter)) {
+                // Filter by doctor ID
+                $filters[] = ['doctor_id', '=', (int) $filter];
+            } else {
+                // Filter by doctor name
+                $doctorId = $odooApi->getDoctorIdByName($filter);
+                if ($doctorId) {
+                    $filters[] = ['doctor_id', '=', $doctorId];
+                } else {
+                    return response()->json([
+                        'error' => 'Doctor not found'
+                    ], 404);
+                }
+            }
+        }
+
+        $salesOrders = $odooApi->call('/web/dataset/call_kw', [
+            'model' => 'sale.order',
+            'method' => 'search_read',
+            'args' => [
+                $filters,
+                ['id', 'name', 'date_order', 'state', 'amount_total', 'doctor_id']
+            ],
+            'kwargs' => [
+                'order' => 'date_order desc',
+                'limit' => 10
+            ]
+        ]);
+
+        return response()->json($salesOrders);
+    } catch (\Exception $e) {
+        return response()->json([
+            'error' => $e->getMessage()
+        ], 500);
+    }
+});
+
+
+
+
 Route::get('/get-sales-order-data/{id}', function ($id) {
     $odooApi = new OdooApi();
 
@@ -266,12 +326,16 @@ Route::get('/get-sales-order-data/{id}', function ($id) {
 
 Route::get('/test-create-sales-order', function () {
     $odooApi = new OdooApi();
+    //dd(auth()->user()->odoo_doctor_id);
 
     try {
         // Prepare sales order data
         $orderData = [
-            'partner_id' => 35812,  // Replace with a valid partner ID
+            'partner_id' => (int)auth()->user()->odoo_doctor_id,  // Replace with a valid partner ID
             'date_order' => date('Y-m-d H:i:s'),
+            'doctor_id' => auth()->user()->odoo_doctor_id,
+            'patient_phone' => 33377333,
+            'patient' =>"ADNAN AL ADEEB (SHC)",
             'state' => 'draft',  // Set the state to 'draft'
         ];
 

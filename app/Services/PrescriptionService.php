@@ -77,6 +77,7 @@ class PrescriptionService
 
     protected function syncWithOdoo(Prescription $prescription)
     {
+        
         $odooMedications = $prescription->medications->where('type', 'odoo');
     
         if ($odooMedications->isEmpty()) {
@@ -90,9 +91,11 @@ class PrescriptionService
     
             // Create sales order
             $orderId = $this->odooApi->createSalesOrder([
-                'partner_id' => $partnerId,
-                'x_prescription_reference' => $prescription->id,
-                'x_doctor_id' => auth()->id()
+                'partner_id' => (int)auth()->user()->odoo_doctor_id,
+                'prescription_reference' => $prescription->id,
+                'doctor_id' => (int)auth()->user()->odoo_doctor_id,
+                'patient_phone' => $prescription->patient->phone,
+                'patient' => $prescription->patient->first_name ." ".$prescription->patient->last_name,
             ]);
     
             // Create order lines

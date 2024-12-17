@@ -105,73 +105,6 @@ class OdooSyncService
 
 
 
-
-    /**
-     * Create a sales order in Odoo
-     *
-     * @param Prescription $prescription
-     * @param array $orderLines
-     * @return string
-     * @throws OdooSyncException
-     */
-    //@todo:remove 1 at the end
-    /********************************
-    protected function createSalesOrder(Prescription $prescription, array $orderLines): string
-    {
-        try {
-
-            $orderLines = [];
-
-            foreach ($prescription->medications as $medication) {
-
-                $productId = $medication->type === 'odoo' ? $medication->product : null;
-                $productName = $medication->type === 'custom' ? $medication->custom_name : null;
-
-                $orderLines[] = [
-                    'product_id' => $productId,
-                    'product_name' => $productName,
-                    'product_uom_qty' => $medication->quantity,
-                    'product_uom' => 1, // Assuming the default unit of measure
-                    // Add any other required fields for the order line
-                ];
-            }
-
-
-            $response = Http::withHeaders([
-                'Authorization' => 'Bearer ' . $this->apiKey,
-                'Accept' => 'application/json',
-            ])->post("{$this->baseUrl}/api/sale.order", [
-                'db' => $this->database,
-                'login' => $this->username,
-                'password' => $this->password,
-                'data' => [
-                    'partner_id' => $prescription->patient->odoo_partner_id,
-                    'date_order' => $prescription->prescription_date->format('Y-m-d'),
-                    'prescription_id' => $prescription->id,
-                    'doctor_id' => $prescription->doctor->odoo_user_id,
-                    'order_line' => $orderLines,
-                    'note' => $this->buildOrderNotes($prescription),
-                ]
-            ]);
-
-            if (!$response->successful()) {
-                throw new OdooSyncException('Failed to create sales order: ' . $response->body());
-            }
-
-            $data = $response->json();
-            
-            if (!isset($data['id'])) {
-                throw new OdooSyncException('Invalid response from Odoo: Order ID not found');
-            }
-
-            return (string) $data['id'];
-
-        } catch (\Exception $e) {
-            throw new OdooSyncException('Failed to create sales order: ' . $e->getMessage());
-        }
-    }
-*//////////////////////
-
     
 /**
  * Create a sales order in Odoo
@@ -195,7 +128,11 @@ protected function createSalesOrder(Prescription $prescription, array $orderLine
                 'partner_id' => $prescription->patient->odoo_partner_id,
                 'date_order' => $prescription->prescription_date->format('Y-m-d'),
                 'prescription_id' => $prescription->id,
-                'doctor_id' => $prescription->doctor->odoo_user_id,
+                //'doctor_id' =>  $prescription->doctor->odoo_user_id,
+                'date_order' => date('Y-m-d H:i:s'),
+                'doctor_id' => auth()->user()->odoo_doctor_id,
+                'patient_phone' => 333333,
+                'patient' =>"ADNAN AL ADEEB (SHC)",
                 'order_line' => array_map(function ($line) {
                     return [
                         'product_id' => $line['product_id'],
