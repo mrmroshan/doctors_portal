@@ -1,8 +1,11 @@
 <aside class="main-sidebar sidebar-dark-primary elevation-4">
-    <a href="{{ url('/home') }}" class="brand-link">
-        <img src="{{ Storage::url('images/o-logo.png')  }}" alt="AdminLTE Logo" class="brand-image img-circle elevation-3" style="opacity: .8">
-        <!-- <span class="brand-text font-weight-light">{{ config('app.name') }}</span> -->
-        <span class="brand-text font-weight-light">Doctor's Portal</span>
+<a href="{{ url('/home') }}" class="brand-link">
+        @if (Auth::user()->profile_pic)
+        <img src="{{ asset('storage/profile_pics/' . Auth::user()->profile_pic) }}" alt="{{ Auth::user()->name }}" class="brand-image elevation-3" style="opacity: .8; width: 100px; height: 100px; object-fit: cover;">
+        @else
+            <img src="{{ Storage::url('images/o-logo.png') }}" alt="AdminLTE Logo" class="brand-image img-circle elevation-3" style="opacity: .8">
+        @endif
+        <span class="brand-text font-weight-light">Odoo Portal</span>
     </a>
 
     <div class="sidebar">
@@ -36,32 +39,35 @@
                             return request()->is(trim($subitem['url'] ?? '', '/') . '*');
                         });
                     @endphp
-                    <li class="nav-item {{ $hasSubmenu ? ($isActive || $hasActiveChild ? 'menu-open' : '') : '' }}">
-                        <a href="{{ $item['url'] ?? '#' }}" class="nav-link {{ $isActive ? 'active' : '' }}">
-                            <i class="nav-icon {{ $item['icon'] ?? 'fas fa-circle' }}"></i>
-                            <p>
-                                {{ $item['text'] }}
-                                @if($hasSubmenu)
-                                    <i class="right fas fa-angle-left"></i>
-                                @endif
-                            </p>
-                        </a>
-                        @if($hasSubmenu)
-                            <ul class="nav nav-treeview">
-                                @foreach($item['submenu'] as $subitem)
-                                    @php
-                                        $isSubItemActive = request()->is(trim($subitem['url'] ?? '', '/') . '*');
-                                    @endphp
-                                    <li class="nav-item">
-                                        <a href="{{ url($subitem['url'] ?? '#') }}" class="nav-link {{ $isSubItemActive ? 'active' : '' }}">
-                                            <i class="far fa-circle nav-icon"></i>
-                                            <p>{{ $subitem['text'] }}</p>
-                                        </a>
-                                    </li>
-                                @endforeach
-                            </ul>
-                        @endif
-                    </li>
+
+                    @if (Auth::user()->isAdmin() || !in_array('admin', $item['roles'] ?? []))
+                        <li class="nav-item {{ $hasSubmenu ? ($isActive || $hasActiveChild ? 'menu-open' : '') : '' }}">
+                            <a href="{{ $item['url'] ?? '#' }}" class="nav-link {{ $isActive ? 'active' : '' }}">
+                                <i class="nav-icon {{ $item['icon'] ?? 'fas fa-circle' }}"></i>
+                                <p>
+                                    {{ $item['text'] }}
+                                    @if($hasSubmenu)
+                                        <i class="right fas fa-angle-left"></i>
+                                    @endif
+                                </p>
+                            </a>
+                            @if($hasSubmenu)
+                                <ul class="nav nav-treeview">
+                                    @foreach($item['submenu'] as $subitem)
+                                        @php
+                                            $isSubItemActive = request()->is(trim($subitem['url'] ?? '', '/') . '*');
+                                        @endphp
+                                        <li class="nav-item">
+                                            <a href="{{ url($subitem['url'] ?? '#') }}" class="nav-link {{ $isSubItemActive ? '' : '' }}"> <!--active-->
+                                                <i class="far fa-circle nav-icon"></i>
+                                                <p>{{ $subitem['text'] }}</p>
+                                            </a>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            @endif
+                        </li>
+                    @endif
                 @endforeach
             </ul>
         </nav>

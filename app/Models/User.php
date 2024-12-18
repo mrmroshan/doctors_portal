@@ -24,7 +24,9 @@ class User extends Authenticatable
         'role',
         'is_active',
         'phone',
-        'odoo_doctor_id'
+        'odoo_doctor_id',
+        'address',
+        'profile_pic',
     ];
 
     protected $hidden = [

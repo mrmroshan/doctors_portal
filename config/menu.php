@@ -15,7 +15,7 @@ return [
             'submenu' => [
                 ['text' => 'New', 'url' => '/prescriptions/create'],                
                 ['text' => 'All', 'url' => '/prescriptions'],                
-                ['text' => 'Odoo', 'url' => '/prescription/odoo-prescriptions'],                
+          //      ['text' => 'Odoo', 'url' => '/prescription/odoo-prescriptions'],                
             ],
         ],
         [
@@ -28,6 +28,7 @@ return [
             ],
         ],
         [
+            'role' => 'admin',
             'text' => 'Users',
             'icon' => 'fas fa-user-cog',
             'url' => '/admin/users',  // Updated URL
@@ -35,7 +36,7 @@ return [
                 ['text' => 'New', 'url' => '/admin/users/create'],  // Updated URL               
                 ['text' => 'All', 'url' => '/admin/users'],  // Updated URL                             
             ],
-            'role' => 'admin',  // Optional: Add this if you want to show this menu only to admins
+              // Optional: Add this if you want to show this menu only to admins
         ]
     ],
 ];

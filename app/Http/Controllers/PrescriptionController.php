@@ -88,10 +88,10 @@ class PrescriptionController extends Controller
 public function odoo_index(Request $request)
 {
     try {
+        $doctorId = auth()->user()->odoo_doctor_id;
+
         $query = Prescription::with(['patient', 'doctor', 'medications'])
-            ->when(!auth()->user()->isAdmin(), function($query) {
-                $query->where('created_by', auth()->id());
-            });
+            ->where('created_by', auth()->id());
 
         // Search by patient name
         if ($request->filled('search')) {
@@ -116,35 +116,26 @@ public function odoo_index(Request $request)
             ->paginate(15)
             ->withQueryString();
 
-        // Fetch medications from Odoo with caching
-        $odooMedications = Cache::remember('odoo_medications', 600, function () {
-            return $this->odooApi->getMedicationList();
-        });
-        
-        // Convert to a lookup array with product ID as key
-        $medicationsLookup = collect($odooMedications)->keyBy('id')->all();
+        // Fetch sales orders from Odoo based on the doctor's ID
+        $odooSalesOrders = $this->odooApi->getSalesOrdersByDoctor($doctorId);
 
-        // Enhance each prescription's medications with Odoo data
-        foreach ($prescriptions as $prescription) {
-            $prescription->medications = collect($prescription->medications)->map(function ($medication) use ($medicationsLookup) {
-                if (isset($medicationsLookup[$medication->product])) {
-                    $odooMed = $medicationsLookup[$medication->product];
-                    $medication->product_name = $odooMed['name'];
-                    $medication->product_code = $odooMed['default_code'];
-                }
-                return $medication;
-            });
-        }
+        // Map the Odoo sales orders to a format compatible with your Prescription model
+        $odooSalesOrders = collect($odooSalesOrders)->map(function ($order) {
+            // ... (map the order data to a format compatible with your Prescription model)
+            return $mappedOrder;
+        });
+
+        // Merge the local prescriptions with the Odoo sales orders
+        $prescriptions = $prescriptions->merge($odooSalesOrders);
 
         return view('prescriptions.index', compact('prescriptions'));
 
     } catch (\Exception $e) {
-        Log::error('Error fetching Odoo medications for index: ' . $e->getMessage());
+        Log::error('Error fetching Odoo sales orders: ' . $e->getMessage());
         return view('prescriptions.index', compact('prescriptions'))
-            ->with('warning', 'Unable to fetch medication details from Odoo.');
+            ->with('warning', 'Unable to fetch sales orders from Odoo.');
     }
 }
-
 
 
     public function create()

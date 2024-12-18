@@ -55,8 +55,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/prescription/odoo-prescriptions', [PrescriptionController::class,'odoo_index']);
 
 
+        //Route::get('/profile', [ProfileController::class, 'show'])->name('profile.show');
         
-
         Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
         Route::put('/profile', [ProfileController::class, 'update'])->name('profile.update');
 

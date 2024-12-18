@@ -143,6 +143,64 @@ class OdooApi
 
 
 
+    public function getSalesOrdersByDoctor($filter = null)
+    {
+        try {
+            // Base filters - always exclude cancelled orders
+            $filters = [
+                ['state', '!=', 'cancel']
+            ];
+    
+            // Add doctor filter if specified
+            if ($filter) {
+                if (is_numeric($filter)) {
+                    // Filter by doctor ID
+                    $filters[] = ['doctor_id', '=', (int) $filter];
+                } else {
+                    // Filter by doctor name
+                    $doctorId = $this->getDoctorIdByName($filter);
+                    if ($doctorId) {
+                        $filters[] = ['doctor_id', '=', $doctorId];
+                    } else {
+                        return response()->json([
+                            'error' => 'Doctor not found'
+                        ], 404);
+                    }
+                }
+            }
+    
+            $result = $this->call('/web/dataset/call_kw', [
+                'model' => 'sale.order',
+                'method' => 'search_read',
+                'args' => [
+                    $filters,
+                    ['id', 'name', 'date_order', 'state', 'amount_total', 'doctor_id']
+                ],
+                'kwargs' => [
+                    'order' => 'date_order desc',
+                    'limit' => 10,
+                    'context' => ['lang' => 'en_US']
+                ]
+            ]);
+    
+            return response()->json($result);
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch sales orders by doctor from Odoo', [
+                'error' => $e->getMessage(),
+                'doctor_filter' => $filter,
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'error' => 'Failed to fetch sales orders by doctor: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+
+
+
+
     public function getDoctorIdByName(string $doctorName)
 {
     try {
