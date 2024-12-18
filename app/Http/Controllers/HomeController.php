@@ -29,6 +29,7 @@ class HomeController extends Controller
         }
         
         return redirect()->route('doctor.dashboard');
+
     }
 
     /**
@@ -49,7 +50,19 @@ class HomeController extends Controller
      */
     public function doctorDashboard(): View
     {
-        // Add doctor-specific data here
-        return view('doctor.dashboard');
+                  // Fetch doctor-specific data here
+            // Fetch doctor-specific data here
+        // Fetch doctor-specific data here
+        $patientCount = auth()->user()->patients()->count();
+        $todayPrescriptions = auth()->user()->prescriptions()->whereDate('created_at', today())->count();
+        $recentPrescriptions = auth()->user()->prescriptions()->with('patient')->latest()->take(10)->get();
+        $recentPatients = auth()->user()->patients()->with('prescriptions')->latest()->take(10)->get();
+
+        return view('doctor.dashboard', [
+            'patientCount' => $patientCount,
+            'todayPrescriptions' => $todayPrescriptions,
+            'recentPrescriptions' => $recentPrescriptions,
+            'recentPatients' => $recentPatients,
+        ]);
     }
 }

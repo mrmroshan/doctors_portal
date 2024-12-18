@@ -24,6 +24,7 @@
                 </div>
             </div>
         </div>
+        <!--
         <div class="col-12 col-sm-6 col-md-3">
             <div class="info-box">
                 <span class="info-box-icon bg-warning"><i class="fas fa-clock"></i></span>
@@ -42,6 +43,7 @@
                 </div>
             </div>
         </div>
+        -->
     </div>
 
     <!-- Main row -->
@@ -73,7 +75,30 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <!-- Add prescription items here -->
+                                @forelse ($recentPrescriptions as $prescription)
+                                <tr>
+                                    <td>{{ $prescription->patient->first_name }} {{ $prescription->patient->last_name }}</td>
+                                    <td>{{ $prescription->created_at->format('Y-m-d') }}</td>
+                                    <td>
+                                        @if ($prescription->status === 'pending')
+                                            <span class="badge badge-warning">Pending</span>
+                                        @elseif ($prescription->status === 'completed')
+                                            <span class="badge badge-success">Completed</span>
+                                        @else
+                                            <span class="badge badge-danger">{{ $prescription->status }}</span>
+                                        @endif
+                                    </td>
+                                    <td>
+                                        <a href="{{ route('prescriptions.show', $prescription->id) }}" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                @empty
+                                <tr>
+                                    <td colspan="4" class="text-center">No recent prescriptions found.</td>
+                                </tr>
+                                @endforelse
                             </tbody>
                         </table>
                     </div>
@@ -94,13 +119,28 @@
                             <thead>
                                 <tr>
                                     <th>Name</th>
-                                    <th>Last Visit</th>
+                                    <!-- <th>Last Visit</th> -->
                                     <th>Prescriptions</th>
                                     <th>Action</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                <!-- Add patient items here -->
+                                @forelse ($recentPatients as $patient)
+                                <tr>
+                                    <td>{{ $patient->first_name }} {{ $patient->last_name }}</td>
+                                    <!-- <td>{{ $patient->lastVisit ? $patient->lastVisit->format('Y-m-d') : 'N/A' }}</td> -->
+                                    <td>{{ $patient->prescriptions->count() }}</td>
+                                    <td>
+                                        <a href="{{ route('patients.show', $patient->id) }}" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                @empty
+                                <tr>
+                                    <td colspan="4" class="text-center">No recent patients found.</td>
+                                </tr>
+                                @endforelse
                             </tbody>
                         </table>
                     </div>
@@ -120,20 +160,23 @@
                 </div>
                 <div class="card-body">
                     <div class="d-grid gap-2">
-                        <a href="{{ route('prescriptions.create') }}" class="btn btn-primary btn-lg mb-2">
+                        <a href="{{ route('prescriptions.create') }}" class="btn btn-primary btn-block mb-2">
                             <i class="fas fa-file-medical mr-2"></i> New Prescription
                         </a>
-                        <a href="{{ route('patients.create') }}" class="btn btn-success btn-lg mb-2">
+                        <a href="{{ route('patients.create') }}" class="btn btn-success btn-block mb-2">
                             <i class="fas fa-user-plus mr-2"></i> Add New Patient
                         </a>
-                        <a href="#" class="btn btn-info btn-lg">
+                        <!--
+                        <a href="#" class="btn btn-info btn-block">
                             <i class="fas fa-pills mr-2"></i> View Medications
                         </a>
+                        -->
                     </div>
                 </div>
             </div>
 
             <!-- Sync Status -->
+            <!--
             <div class="card">
                 <div class="card-header">
                     <h3 class="card-title">
@@ -142,9 +185,9 @@
                     </h3>
                 </div>
                 <div class="card-body">
-                    <!-- Add sync status indicators here -->
                 </div>
             </div>
+            -->
         </section>
     </div>
 </div>
