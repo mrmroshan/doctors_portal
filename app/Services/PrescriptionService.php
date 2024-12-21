@@ -96,6 +96,7 @@ class PrescriptionService
                 'doctor_id' => (int)auth()->user()->odoo_doctor_id,
                 'patient_phone' => $prescription->patient->phone,
                 'patient' => $prescription->patient->first_name ." ".$prescription->patient->last_name,
+                'patient_portal_id' => $prescription->patient->id,
             ]);
     
             // Create order lines

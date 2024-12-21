@@ -251,6 +251,7 @@ class OdooApi
                 'doctor_id' => $data['doctor_id'],
                 'patient_phone' => $data['patient_phone'],
                 'patient' =>$data['patient'],
+                'patient_portal_id'=>$data['patient_portal_id'],
             ];
     
             Log::info('Creating sales order in Odoo', ['data' => $orderData]);
