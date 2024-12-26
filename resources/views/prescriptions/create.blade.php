@@ -1,8 +1,8 @@
 @extends('layouts.app')
 
 @section('content')
-<div class="container">
-    <div class="card">
+<div class="container-fluid">
+    <div class="card w-100">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h4 class="mb-0">Create New Prescription</h4>
             <a href="{{ route('prescriptions.index') }}" class="btn btn-secondary btn-sm">
@@ -13,177 +13,207 @@
         <div class="card-body">
             <form action="{{ route('prescriptions.store') }}" method="POST" id="prescriptionForm">
                 @csrf
-                
-                <!-- Prescription Date -->
-                <div class="form-group mb-3">
-                    <label for="prescription_date">Prescription Date <span class="text-danger">*</span></label>
-                    <input type="date" name="prescription_date" id="prescription_date" 
-                        class="form-control @error('prescription_date') is-invalid @enderror"
-                        value="{{ old('prescription_date', date('Y-m-d')) }}" required>
-                    @error('prescription_date')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                </div>
 
-                <!-- Patient Selection -->
-                <div class="form-group mb-3">
-                    <label for="patient_id">Patient <span class="text-danger">*</span></label>
-                    <div class="input-group">
-                        <select name="patient_id" id="patient_id" 
-                            class="form-control @error('patient_id') is-invalid @enderror" required>
-                            <option value="">Select Patient</option>
-                            @foreach($patients as $patient)
-                                <option value="{{ $patient->id }}" 
-                                    {{ old('patient_id') == $patient->id ? 'selected' : '' }}>
-                                    {{ $patient->first_name }} {{ $patient->last_name }} - {{ $patient->phone }}
-                                </option>
-                            @endforeach
-                        </select>
-                        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" 
-                            data-bs-target="#newPatientModal">
-                            <i class="fas fa-plus"></i>
-                        </button>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <!-- Prescription Date -->
+                        <div class="form-group">
+                            <label for="prescription_date">Prescription Date <span class="text-danger">*</span></label>
+                            <input type="date" name="prescription_date" id="prescription_date" 
+                                class="form-control @error('prescription_date') is-invalid @enderror"
+                                value="{{ old('prescription_date', date('Y-m-d')) }}" required>
+                            @error('prescription_date')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
                     </div>
-                    @error('patient_id')
-                        <div class="invalid-feedback">{{ $message }}</div>
-                    @enderror
-                </div>
 
-                <!-- Medications Section -->
-                <div class="card mb-3">
-                    <div class="card-header bg-light d-flex justify-content-between align-items-center py-2">
-                        <h5 class="mb-0">Medications</h5>
-                        <button type="button" class="btn btn-primary btn-sm" id="addMedication">
-                            <i class="fas fa-plus"></i> Add Medication
-                        </button>
-                    </div>
-                    <div class="card-body">
-                        <div id="medications-container">
-                            <!-- Medication Template -->
-                            <div class="medication-item mb-4 pb-3 border-bottom" data-index="0">
-                                <!-- Medication Type Toggle -->
-                                <div class="row mb-3">
-                                    <div class="col-12">
-                                        <label class="d-block mb-2">Medication Type <span class="text-danger">*</span></label>
-                                        <div class="btn-group medication-type-toggle" role="group">
-                                            <input type="radio" class="btn-check" name="medications[0][type]" 
-                                                value="odoo" id="type-odoo-0" checked>
-                                            <label class="btn btn-outline-primary" for="type-odoo-0">
-                                                <i class="fas fa-box-open"></i> Odoo Product
-                                            </label>
-
-                                            <input type="radio" class="btn-check" name="medications[0][type]" 
-                                                value="custom" id="type-custom-0">
-                                            <label class="btn btn-outline-primary" for="type-custom-0">
-                                                <i class="fas fa-pills"></i> Custom
-                                            </label>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Medication Fields -->
-                                <div class="medication-fields">
-                                    <!-- Odoo Product Fields -->
-                                    <div class="odoo-fields">
-                                        <div class="row">
-                                            <div class="col-md-12 mb-3">
-                                                <label>Select Medication <span class="text-danger">*</span></label>
-                                                <select name="medications[0][product_id]" class="form-control medication-select">
-                                                    <option value="">Select Medication</option>
-                                                    @foreach($medications as $medication)
-                                                        <option value="{{ $medication['id'] }}">
-                                                        {{ $medication['id'] }} - {{ $medication['name'] }} - {{  $medication['price'] }} 
-                                                            ({{ $medication['default_code'] ?? 'N/A' }})
-                                                        </option>
-                                                    @endforeach
-                                                </select>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Custom Medication Fields -->
-                                    <div class="custom-fields" style="display: none;">
-                                        <div class="row">
-                                            <div class="col-md-6 mb-3">
-                                                <label>Medication Name <span class="text-danger">*</span></label>
-                                                <input type="text" name="medications[0][custom_name]" class="form-control">
-                                            </div>
-                                            <div class="col-md-6 mb-3">
-                                                <label>Strength/Form</label>
-                                                <input type="text" name="medications[0][custom_strength]" 
-                                                    class="form-control" placeholder="e.g., 500mg tablet">
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <!-- Common Fields -->
-                                    <div class="common-fields">
-                                        <div class="row">
-                                            <div class="col-md-6 mb-3">
-                                                <label>Quantity <span class="text-danger">*</span></label>
-                                                <input type="number" name="medications[0][quantity]" 
-                                                    class="form-control" required min="1">
-                                            </div>
-                                            <div class="col-md-6 mb-3">
-                                                <label>Dosage <span class="text-danger">*</span></label>
-                                                <input type="text" name="medications[0][dosage]" 
-                                                    class="form-control" required placeholder="e.g., 1 tablet">
-                                            </div>
-                                        </div>
-                                        
-                                        <!-- Schedule Fields -->
-                                        <div class="row">
-                                            <div class="col-md-4 mb-3">
-                                                <label>Every</label>
-                                                <input type="number" name="medications[0][every]" 
-                                                    class="form-control" min="1">
-                                            </div>
-                                            <div class="col-md-4 mb-3">
-                                                <label>Period</label>
-                                                <select name="medications[0][period]" class="form-control">
-                                                    <option value="">Select Period</option>
-                                                    <option value="hours">Hour(s)</option>
-                                                    <option value="days">Day(s)</option>
-                                                    <option value="weeks">Week(s)</option>
-                                                    <option value="months">Month(s)</option>
-                                                </select>
-                                            </div>
-                                            <div class="col-md-4 mb-3">
-                                                <label>&nbsp;</label>
-                                                <div class="form-check mt-2">
-                                                    <input type="checkbox" class="form-check-input" 
-                                                        name="medications[0][as_needed]" id="as_needed_0">
-                                                    <label class="form-check-label" for="as_needed_0">As needed</label>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div class="row">
-                                            <div class="col-12 mb-3">
-                                                <label>Additional Directions</label>
-                                                <textarea name="medications[0][directions]" class="form-control" 
-                                                    rows="2" placeholder="Additional instructions or directions"></textarea>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- Remove Button -->
-                                <div class="text-end mt-3">
-                                    <button type="button" class="btn btn-danger btn-sm remove-medication">
-                                        <i class="fas fa-trash"></i> Remove
-                                    </button>
-                                </div>
+                    <div class="col-md-6">
+                        <!-- Patient Selection -->
+                        <div class="form-group">
+                            <label for="patient_id">Patient <span class="text-danger">*</span></label>
+                            <div class="input-group">
+                                <select name="patient_id" id="patient_id" 
+                                    class="form-control @error('patient_id') is-invalid @enderror" required>
+                                    <option value="">Select Patient</option>
+                                    @foreach($patients as $patient)
+                                        <option value="{{ $patient->id }}" 
+                                            {{ old('patient_id') == $patient->id ? 'selected' : '' }}>
+                                            {{ $patient->first_name }} {{ $patient->last_name }} - {{ $patient->phone }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" 
+                                    data-bs-target="#newPatientModal">
+                                    <i class="fas fa-plus"></i>
+                                </button>
                             </div>
+                            @error('patient_id')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
                         </div>
                     </div>
                 </div>
 
+                <!-- Medications Section -->
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead>
+                            <tr>
+                                <th>Medication</th>
+                                <th>Quantity</th>
+                                <th>Dosage</th>
+                                <th>Schedule</th>
+                                <th>Directions</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="medications-container">
+                            <!-- Medication Template -->
+                            <tr class="medication-item" data-index="0">
+                                <td>
+                                    <!-- Medication Type Toggle -->
+                                    <div class="btn-group medication-type-toggle" role="group">
+                                        <input type="radio" class="btn-check" name="medications[0][type]" 
+                                            value="odoo" id="type-odoo-0" checked>
+                                        <label class="btn btn-outline-primary" for="type-odoo-0">
+                                            <i class="fas fa-box-open"></i> Odoo Product
+                                        </label>
+
+                                        <input type="radio" class="btn-check" name="medications[0][type]" 
+                                            value="custom" id="type-custom-0">
+                                        <label class="btn btn-outline-primary" for="type-custom-0">
+                                            <i class="fas fa-pills"></i> Custom
+                                        </label>
+                                    </div>
+
+                                    <!-- Odoo Product Fields -->
+                                    <div class="odoo-fields mt-2">
+                                        <select name="medications[0][product_id]" class="form-control medication-select">
+                                            <option value="">Select Medication</option>
+                                            @foreach($medications as $medication)
+                                                <option value="{{ $medication['id'] }}">
+                                                {{ $medication['id'] }} - {{ $medication['name'] }} - {{  $medication['price'] }} 
+                                                    ({{ $medication['default_code'] ?? 'N/A' }})
+                                                </option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+
+                                    <!-- Custom Medication Fields -->
+                                    <div class="custom-fields mt-2" style="display: none;">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <input type="text" name="medications[0][custom_name]" 
+                                                    class="form-control" placeholder="Medication Name">
+                                            </div>
+                                            <div class="col-md-6">
+                                                <input type="text" name="medications[0][custom_strength]" 
+                                                    class="form-control" placeholder="Strength/Form">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <input type="number" name="medications[0][quantity]" 
+                                        class="form-control" required min="1">
+                                </td>
+                                <td>
+                                    <input type="text" name="medications[0][dosage]" 
+                                        class="form-control" required placeholder="e.g., 1 tablet">
+                                </td>
+                                <td>
+                                    <div class="row">
+                                        <div class="col-4">
+                                            <input type="number" name="medications[0][every]" 
+                                                class="form-control" min="1">
+                                        </div>
+                                        <div class="col-4">
+                                            <select name="medications[0][period]" class="form-control">
+                                                <option value="">Select Period</option>
+                                                <option value="hours">Hour(s)</option>
+                                                <option value="days">Day(s)</option>
+                                                <option value="weeks">Week(s)</option>
+                                                <option value="months">Month(s)</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-4">
+                                            <div class="form-check mt-2">
+                                                <input type="checkbox" class="form-check-input" 
+                                                    name="medications[0][as_needed]" id="as_needed_0">
+                                                <label class="form-check-label" for="as_needed_0">As needed</label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <textarea name="medications[0][directions]" class="form-control" 
+                                        rows="2" placeholder="Additional instructions or directions"></textarea>
+                                </td>
+                                <td>
+                                    <button type="button" class="btn btn-danger btn-sm remove-medication">
+                                        <i class="fas fa-trash"></i> Remove
+                                    </button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    <button type="button" class="btn btn-primary btn-sm" id="addMedication">
+                        <i class="fas fa-plus"></i> Add Medication
+                    </button>
+                </div>
+
                 <!-- Submit Button -->
-                <div class="form-group text-end">
+                <div class="form-group text-end mt-3">
                     <button type="submit" class="btn btn-primary">Create Prescription</button>
                 </div>
             </form>
+        </div>
+    </div>
+</div>
+<!-- New Patient Modal -->
+<div class="modal fade" id="newPatientModal" tabindex="-1" aria-labelledby="newPatientModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="newPatientModalLabel">Add New Patient</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="newPatientForm">
+                @csrf
+
+                    <div class="form-group">
+                        <label for="first_name">First Name</label>
+                        <input type="text" class="form-control" id="first_name" name="first_name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="last_name">Last Name</label>
+                        <input type="text" class="form-control" id="last_name" name="last_name" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="phone">Phone</label>
+                        <input type="text" class="form-control" id="phone" name="phone" required>
+                    </div>
+                    <!-- Add more patient fields as needed -->
+                    <div class="form-group">
+                        <label for="date_of_birth">Date of Birth</label>
+                        <input type="date" class="form-control" id="date_of_birth" name="date_of_birth" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email</label>
+                        <input type="email" class="form-control" id="email" name="email">
+                    </div>
+                    <div class="form-group">
+                        <label for="address">Address</label>
+                        <textarea class="form-control" id="address" name="address"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="savePatient">Save Patient</button>
+            </div>
         </div>
     </div>
 </div>
@@ -369,5 +399,51 @@ $(document).on('change', '.medication-select', function() {
         }
     }
 });
+
+
+
+
+// Handle new patient form
+$('#newPatientModal').on('shown.bs.modal', function() {
+        $('#newPatientForm').trigger('reset');
+    });
+
+    $('#savePatient').click(function() {
+        const formData = $('#newPatientForm').serialize();
+        // Send AJAX request to save the new patient
+        // and update the patient dropdown when successful
+        $.ajax({
+            url: '{{ route('api.patients.store') }}',
+            type: 'POST',
+            data: formData,
+            success: function(response) {
+                if (response.success) {
+                    // Add the new patient to the patient dropdown
+                    var newOption = $('<option>', {
+                        value: response.patient.id,
+                        text: response.patient.text
+                    });
+                    $('#patient_id').append(newOption);
+
+                    // Close the modal
+                    $('#newPatientModal').modal('hide');
+
+                    // Display a success message
+                    alert('Patient created successfully!');
+                } else {
+                    // Display an error message
+                    alert(response.message);
+                }
+            },
+            error: function(xhr, status, error) {
+                // Handle the error
+                console.error(error);
+                alert('An error occurred while creating the patient.');
+            }
+        });
+    });
+
+
+
 </script>
 @endpush

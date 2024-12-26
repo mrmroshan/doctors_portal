@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::table('prescriptions', function (Blueprint $table) {
             $table->string('odoo_order_id')->nullable()->after('directions');
-            $table->enum('sync_status', ['pending', 'synced', 'error'])->default('pending')->after('odoo_order_id');
+            $table->enum('sync_status', ['pending', 'synced', 'error', 'not_required'])->default('pending')->after('odoo_order_id');
             $table->timestamp('sync_attempted_at')->nullable()->after('sync_status');
             $table->text('sync_error')->nullable()->after('sync_attempted_at');
             $table->foreignId('created_by')->constrained('users')->after('patient_id');
