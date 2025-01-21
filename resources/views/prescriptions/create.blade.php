@@ -72,45 +72,34 @@
                             <!-- Medication Template -->
                             <tr class="medication-item" data-index="0">
                                 <td>
-                                    <!-- Medication Type Toggle -->
-                                    <div class="btn-group medication-type-toggle" role="group">
-                                        <input type="radio" class="btn-check" name="medications[0][type]" 
-                                            value="odoo" id="type-odoo-0" checked>
-                                        <label class="btn btn-outline-primary" for="type-odoo-0">
-                                            <i class="fas fa-box-open"></i> Odoo Product
-                                        </label>
-
-                                        <input type="radio" class="btn-check" name="medications[0][type]" 
-                                            value="custom" id="type-custom-0">
-                                        <label class="btn btn-outline-primary" for="type-custom-0">
-                                            <i class="fas fa-pills"></i> Custom
-                                        </label>
+                                    <!-- Replace the existing medication selection with new search input -->
+                                    <div class="medication-search-container">
+                                        <input type="text" 
+                                            class="form-control medication-search" 
+                                            placeholder="Start typing medication name (min. 4 characters)..."
+                                            autocomplete="off">
+                                        
+                                        <!-- Hidden fields to store the selected medication data -->
+                                        <input type="hidden" name="medications[0][type]" class="medication-type" value="custom">
+                                        <input type="hidden" name="medications[0][product_id]" class="medication-product-id">
+                                        <input type="hidden" name="medications[0][custom_name]" class="medication-custom-name">
+                                        
+                                        <!-- Results container -->
+                                        <div class="medication-results" style="display: none;">
+                                            <div class="list-group">
+                                                <!-- Results will be populated here -->
+                                            </div>
+                                        </div>
                                     </div>
 
-                                    <!-- Odoo Product Fields -->
-                                    <div class="odoo-fields mt-2">
-                                        <select name="medications[0][product_id]" class="form-control medication-select">
-                                            <option value="">Select Medication</option>
-                                            @foreach($medications as $medication)
-                                                <option value="{{ $medication['id'] }}">
-                                                {{ $medication['id'] }} - {{ $medication['name'] }} - {{  $medication['price'] }} 
-                                                    ({{ $medication['default_code'] ?? 'N/A' }})
-                                                </option>
-                                            @endforeach
-                                        </select>
-                                    </div>
-
-                                    <!-- Custom Medication Fields -->
-                                    <div class="custom-fields mt-2" style="display: none;">
-                                        <div class="row">
-                                            <div class="col-md-6">
-                                                <input type="text" name="medications[0][custom_name]" 
-                                                    class="form-control" placeholder="Medication Name">
-                                            </div>
-                                            <div class="col-md-6">
-                                                <input type="text" name="medications[0][custom_strength]" 
-                                                    class="form-control" placeholder="Strength/Form">
-                                            </div>
+                                    <!-- Selected medication display -->
+                                    <div class="selected-medication mt-2" style="display: none;">
+                                        <div class="alert alert-info mb-0">
+                                            <i class="fas fa-check-circle"></i> 
+                                            <span class="medication-name"></span>
+                                            <button type="button" class="btn btn-link btn-sm float-end clear-medication">
+                                                <i class="fas fa-times"></i>
+                                            </button>
                                         </div>
                                     </div>
                                 </td>
@@ -222,6 +211,58 @@
 @push('styles')
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 <link href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" rel="stylesheet" />
+<style>
+.medication-search-container {
+    position: relative;
+}
+
+.medication-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    max-height: 300px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid rgba(0,0,0,.125);
+    border-radius: 0.25rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,.1);
+}
+
+.medication-result-item {
+    cursor: pointer;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid rgba(0,0,0,.125);
+}
+
+.medication-result-item:last-child {
+    border-bottom: none;
+}
+
+.medication-result-item:hover {
+    background-color: #f8f9fa;
+}
+
+.selected-medication {
+    margin-top: 0.5rem;
+}
+
+.selected-medication .alert {
+    margin-bottom: 0;
+    padding: 0.5rem 1rem;
+}
+
+.clear-medication {
+    padding: 0;
+    color: #dc3545;
+    text-decoration: none;
+}
+
+.clear-medication:hover {
+    color: #bd2130;
+}
+</style>
 @endpush
 
 @push('scripts')
@@ -238,6 +279,7 @@ $(document).ready(function() {
     initializeMedicationSelect($('.medication-select').first());
 
     let medicationIndex = 0;
+    let searchTimeout;
 
     // Handle medication type toggle
     $(document).on('change', '.medication-item input[type="radio"]', function() {
@@ -263,11 +305,101 @@ $(document).ready(function() {
         }
     });
 
-    // Form validation
+    // Form validation and submission
     $('#prescriptionForm').on('submit', function(e) {
-        if (!validateForm()) {
-            e.preventDefault();
-            alert('Please fill in all required fields.');
+        e.preventDefault();
+        
+        let isValid = true;
+        const errors = [];
+
+        // Validate prescription date
+        if (!$('#prescription_date').val()) {
+            isValid = false;
+            errors.push('Prescription date is required');
+            $('#prescription_date').addClass('is-invalid');
+        }
+
+        // Validate patient selection
+        if (!$('#patient_id').val()) {
+            isValid = false;
+            errors.push('Patient selection is required');
+            $('#patient_id').addClass('is-invalid');
+        }
+
+        // Validate medications
+        $('.medication-item').each(function(index) {
+            const item = $(this);
+            const searchInput = item.find('.medication-search');
+            const type = item.find('.medication-type').val();
+            const productId = item.find('.medication-product-id').val();
+            const quantity = item.find('input[name^="medications"][name$="[quantity]"]').val();
+            const dosage = item.find('input[name^="medications"][name$="[dosage]"]').val();
+            const directions = item.find('textarea[name^="medications"][name$="[directions]"]').val();
+
+            // Check if medication is selected (either Odoo product or custom)
+            if (type === 'odoo' && !productId) {
+                isValid = false;
+                errors.push(`Medication #${index + 1}: Please select a valid medication`);
+                searchInput.addClass('is-invalid');
+            } else if (type === 'custom' && !searchInput.val().trim()) {
+                isValid = false;
+                errors.push(`Medication #${index + 1}: Please enter a medication name`);
+                searchInput.addClass('is-invalid');
+            }
+
+            // Validate quantity
+            if (!quantity || quantity < 1) {
+                isValid = false;
+                errors.push(`Medication #${index + 1}: Quantity is required and must be at least 1`);
+                item.find('input[name^="medications"][name$="[quantity]"]').addClass('is-invalid');
+            }
+
+            // Validate dosage
+            if (!dosage) {
+                isValid = false;
+                errors.push(`Medication #${index + 1}: Dosage is required`);
+                item.find('input[name^="medications"][name$="[dosage]"]').addClass('is-invalid');
+            }
+
+            // Validate directions
+            if (!directions) {
+                isValid = false;
+                errors.push(`Medication #${index + 1}: Directions are required`);
+                item.find('textarea[name^="medications"][name$="[directions]"]').addClass('is-invalid');
+            }
+        });
+
+        // If the form is valid, prepare medication data and submit
+        if (isValid) {
+            $('.medication-item').each(function() {
+                const container = $(this);
+                const searchInput = container.find('.medication-search');
+                const typeInput = container.find('.medication-type');
+                const productIdInput = container.find('.medication-product-id');
+                const customNameInput = container.find('.medication-custom-name');
+                
+                // Check if this is a selected Odoo product or custom medication
+                if (productIdInput.val()) {
+                    // This is an Odoo product
+                    typeInput.val('odoo');
+                    customNameInput.val('');
+                } else {
+                    // This is a custom medication
+                    typeInput.val('custom');
+                    customNameInput.val(searchInput.val().trim());
+                    productIdInput.val(''); // Ensure product_id is empty for custom medications
+                }
+            });
+            
+            // Submit the form
+            this.submit();
+        } else {
+            // Show error messages
+            let errorMessage = 'Please correct the following errors:\n';
+            errors.forEach(error => {
+                errorMessage += `\n- ${error}`;
+            });
+            alert(errorMessage);
         }
     });
 
@@ -275,6 +407,116 @@ $(document).ready(function() {
     $(document).on('input change', '.is-invalid', function() {
         $(this).removeClass('is-invalid');
     });
+
+    // Handle medication search
+    $(document).on('input', '.medication-search', function() {
+        const searchInput = $(this);
+        const resultsContainer = searchInput.siblings('.medication-results');
+        const searchTerm = searchInput.val().trim();
+        
+        clearTimeout(searchTimeout);
+
+        if (searchTerm.length < 4) {
+            resultsContainer.hide();
+            return;
+        }
+
+        searchTimeout = setTimeout(() => {
+            searchMedications(searchTerm, searchInput);
+        }, 300);
+    });
+
+    // Handle medication selection
+    $(document).on('click', '.medication-result-item', function() {
+        const item = $(this);
+        const container = item.closest('.medication-search-container');
+        const searchInput = container.find('.medication-search');
+        
+        // Update hidden fields for Odoo product
+        container.find('.medication-type').val('odoo');
+        container.find('.medication-product-id').val(item.data('id'));
+        container.find('.medication-custom-name').val('');
+        
+        // Update the search input with the selected medication name
+        searchInput.val(item.data('name'));
+        
+        // Hide the results dropdown
+        item.closest('.medication-results').hide();
+    });
+
+    // When typing in search input, reset product ID if the text doesn't match selected product
+    $(document).on('input', '.medication-search', function() {
+        const searchInput = $(this);
+        const container = searchInput.closest('.medication-search-container');
+        const productIdInput = container.find('.medication-product-id');
+        
+        // If user modifies the text, assume it's now a custom medication
+        productIdInput.val('');
+        container.find('.medication-type').val('custom');
+    });
+
+    // Handle clear selection
+    $(document).on('click', '.clear-medication', function() {
+        const container = $(this).closest('td');
+        const searchContainer = container.find('.medication-search-container');
+        
+        // Reset fields
+        searchContainer.find('.medication-type').val('custom');
+        searchContainer.find('.medication-product-id').val('');
+        searchContainer.find('.medication-custom-name').val('');
+        searchContainer.find('.medication-search').val('');
+    });
+
+    function searchMedications(term, searchInput) {
+        $.ajax({
+            url: '{{ route('api.medications.search') }}',
+            method: 'GET',
+            data: { search: term },
+            success: function(response) {
+                const resultsContainer = searchInput.siblings('.medication-results');
+                const listGroup = resultsContainer.find('.list-group');
+                
+                listGroup.empty();
+                
+                if (response.success && response.data.length > 0) {
+                    response.data.forEach(med => {
+                        // Simplified display without quantity and price
+                        listGroup.append(`
+                            <div class="list-group-item medication-result-item" 
+                                data-id="${med.id}"
+                                data-name="${med.name}"
+                                data-code="${med.default_code || ''}">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <strong>${med.name}</strong>
+                                        ${med.default_code ? `<br><small class="text-muted">Code: ${med.default_code}</small>` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `);
+                    });
+                    resultsContainer.show();
+                } else {
+                    listGroup.append(`
+                        <div class="list-group-item text-muted">
+                            No matching medications found. You can use this as a custom medication.
+                        </div>
+                    `);
+                    resultsContainer.show();
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Search failed:', error);
+                const listGroup = resultsContainer.find('.list-group');
+                listGroup.empty().append(`
+                    <div class="list-group-item text-danger">
+                        ${xhr.responseJSON?.error || 'Error searching medications. Please try again.'}
+                    </div>
+                `);
+                resultsContainer.show();
+            }
+        });
+    }
 });
 
 // Initialize Select2 for medication selection
@@ -341,43 +583,6 @@ function createNewMedicationItem(index) {
     return template;
 }
 
-// Update form validation
-function validateForm() {
-    let isValid = true;
-    
-    $('.medication-item').each(function() {
-        const item = $(this);
-        const type = item.find('input[type="radio"]:checked').val();
-        
-        // Validate type-specific fields
-        if (type === 'odoo') {
-            const select = item.find('.medication-select');
-            if (!select.val()) {
-                select.addClass('is-invalid');
-                isValid = false;
-            }
-        } else {
-            const customName = item.find('input[name$="[custom_name]"]');
-            if (!customName.val()) {
-                customName.addClass('is-invalid');
-                isValid = false;
-            }
-        }
-
-        // Validate required common fields
-        const requiredFields = ['quantity', 'dosage'];
-        requiredFields.forEach(field => {
-            const input = item.find(`input[name$="[${field}]"]`);
-            if (!input.val()) {
-                input.addClass('is-invalid');
-                isValid = false;
-            }
-        });
-    });
-
-    return isValid;
-}
-
 // Handle stock availability
 $(document).on('change', '.medication-select', function() {
     const selected = $(this).find(':selected');
@@ -399,9 +604,6 @@ $(document).on('change', '.medication-select', function() {
         }
     }
 });
-
-
-
 
 // Handle new patient form
 $('#newPatientModal').on('shown.bs.modal', function() {
@@ -442,8 +644,5 @@ $('#newPatientModal').on('shown.bs.modal', function() {
             }
         });
     });
-
-
-
 </script>
 @endpush

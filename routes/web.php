@@ -8,6 +8,9 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\OdooController;
 use App\Services\OdooApi;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
+use App\Exceptions\OdooApiException;
 
 /*
 |--------------------------------------------------------------------------
@@ -431,3 +434,28 @@ Route::get('/test-latest-patients', function () {
         ], 500);
     }
 });
+
+Route::get('/api/medications/search', function (Request $request) {
+    try {
+        $searchTerm = $request->get('search');
+        
+        if (strlen($searchTerm) < 3) {
+            return response()->json([
+                'error' => 'Search term must be at least 3 characters long'
+            ], 422);
+        }
+
+        $odooApi = app(OdooApi::class);
+        $medications = $odooApi->searchMedications($searchTerm);
+        
+        return response()->json([
+            'success' => true,
+            'data' => $medications
+        ]);
+    } catch (OdooApiException $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage()
+        ], 500);
+    }
+})->name('api.medications.search');

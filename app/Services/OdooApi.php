@@ -684,5 +684,75 @@ public function updateSalesOrder(int $orderId, array $data): bool
 
 
 
+    /**
+     * Search medications/products in Odoo
+     *
+     * @param string $searchTerm
+     * @param int $limit
+     * @return array
+     * @throws OdooApiException
+     */
+    public function searchMedications(string $searchTerm, int $limit = 10): array
+    {
+        try {
+            // Cache key based on search term
+            $cacheKey = 'medications_search_' . md5($searchTerm);
+
+            // Try to get from cache first
+            return Cache::remember($cacheKey, 300, function () use ($searchTerm, $limit) {
+                $result = $this->call('/web/dataset/call_kw', [
+                    'model' => 'product.product',
+                    'method' => 'search_read',
+                    'args' => [
+                        [
+                            ['name', 'ilike', $searchTerm],
+                            ['type', '=', 'product'],
+                            ['sale_ok', '=', true],
+                            ['active', '=', true]
+                        ],
+                        [
+                            'id',
+                            'name',
+                            'default_code',
+                            'list_price',
+                            'qty_available',
+                            'uom_id'  // Add unit of measure
+                        ]
+                    ],
+                    'kwargs' => [
+                        'limit' => $limit,
+                        'context' => ['lang' => 'en_US']
+                    ]
+                ]);
+
+                // Transform the result
+                return collect($result)->map(function ($product) {
+                    return [
+                        'id' => $product['id'],
+                        'name' => $product['name'],
+                        'default_code' => $product['default_code'] ?? '',
+                        'list_price' => $product['list_price'] ?? 0,
+                        'qty_available' => $product['qty_available'] ?? 0,
+                        'uom' => $product['uom_id'] ? [
+                            'id' => $product['uom_id'][0],
+                            'name' => $product['uom_id'][1]
+                        ] : null
+                    ];
+                })->values()->all();
+            });
+
+        } catch (\Exception $e) {
+            Log::error('Failed to search medications in Odoo', [
+                'search_term' => $searchTerm,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw new OdooApiException('Failed to search medications: ' . $e->getMessage());
+        }
+    }
+
+
+
+
 
 }
