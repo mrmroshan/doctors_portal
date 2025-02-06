@@ -108,7 +108,7 @@
                                             name="medications[{{ $index }}][quantity]" 
                                             class="form-control" 
                                             value="{{ $medication->quantity }}"
-                                            {{ $prescription->sync_status === 'synced' ? 'readonly' : 'required' }} 
+                                            {{ $prescription->sync_status === 'synced' ? 'readonly' : '' }} 
                                             min="1">
                                     </td>
                                     <td>
@@ -116,7 +116,7 @@
                                             name="medications[{{ $index }}][dosage]" 
                                             class="form-control" 
                                             value="{{ $medication->dosage }}"
-                                            {{ $prescription->sync_status === 'synced' ? 'readonly' : 'required' }} 
+                                            {{ $prescription->sync_status === 'synced' ? 'readonly' : '' }} 
                                             placeholder="e.g., 1 tablet">
                                     </td>
                                     <td>
@@ -498,13 +498,15 @@ $(document).ready(function() {
                 errors.push(`Please enter medication name for item ${index + 1}`);
             }
 
-            if (!quantityInput.val() || quantityInput.val() < 1) {
+            // Validate quantity (now optional)
+            if (quantityInput.val() && quantityInput.val() < 1) {
                 isValid = false;
                 quantityInput.addClass('is-invalid');
                 errors.push(`Please enter valid quantity for item ${index + 1}`);
             }
 
-            if (!dosageInput.val()) {
+            // Validate dosage (now optional)
+            if (dosageInput.val() && !dosageInput.val().trim()) {
                 isValid = false;
                 dosageInput.addClass('is-invalid');
                 errors.push(`Please enter dosage for item ${index + 1}`);
