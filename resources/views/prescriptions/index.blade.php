@@ -54,6 +54,7 @@
             <table class="table table-striped table-hover mb-0">
                 <thead>
                     <tr>
+                        <th>ID</th>
                         <th>Date</th>
                         <th>Patient</th>
                         <th>Medications</th>
@@ -64,6 +65,7 @@
                 <tbody>
                     @forelse($prescriptions as $prescription)
                         <tr>
+                            <td>{{ $prescription->id }}</td>
                             <td>{{ $prescription->prescription_date->format('M d, Y') }}</td>
                             <td>
                                 <a href="{{ route('patients.show', $prescription->patient) }}">
@@ -150,7 +152,7 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="5" class="text-center py-4">
+                            <td colspan="6" class="text-center py-4">
                                 No prescriptions found.
                             </td>
                         </tr>
