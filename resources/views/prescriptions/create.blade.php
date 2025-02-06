@@ -109,7 +109,7 @@
                                 </td>
                                 <td>
                                     <input type="text" name="medications[0][dosage]" 
-                                        class="form-control" required placeholder="e.g., 1 tablet">
+                                        class="form-control" placeholder="e.g., 1 tablet">
                                 </td>
                                 <td>
                                     <div class="row">
@@ -354,10 +354,10 @@ $(document).ready(function() {
                 item.find('input[name^="medications"][name$="[quantity]"]').addClass('is-invalid');
             }
 
-            // Validate dosage
-            if (!dosage) {
+            // Validate dosage (now optional)
+            if (dosage && !dosage.trim()) {
                 isValid = false;
-                errors.push(`Medication #${index + 1}: Dosage is required`);
+                errors.push(`Medication #${index + 1}: Dosage is required if provided`);
                 item.find('input[name^="medications"][name$="[dosage]"]').addClass('is-invalid');
             }
 
