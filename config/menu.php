@@ -18,7 +18,7 @@ return [
           //      ['text' => 'Odoo', 'url' => '/prescription/odoo-prescriptions'],                
             ],
         ],
-        /*
+        
         [
             'text' => 'Patients',
             'icon' => 'fas fa-users',  // Updated icon
@@ -28,7 +28,7 @@ return [
                 ['text' => 'All', 'url' => '/patients'],                                
             ],
         ],
-        */
+        
         [
             'role' => 'admin',
             'text' => 'Users',

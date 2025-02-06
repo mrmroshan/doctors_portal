@@ -105,7 +105,7 @@
                                 </td>
                                 <td>
                                     <input type="number" name="medications[0][quantity]" 
-                                        class="form-control" required min="1">
+                                        class="form-control" min="1">
                                 </td>
                                 <td>
                                     <input type="text" name="medications[0][dosage]" 
@@ -347,10 +347,10 @@ $(document).ready(function() {
                 searchInput.addClass('is-invalid');
             }
 
-            // Validate quantity
-            if (!quantity || quantity < 1) {
+            // Validate quantity (now optional)
+            if (quantity && quantity < 1) {
                 isValid = false;
-                errors.push(`Medication #${index + 1}: Quantity is required and must be at least 1`);
+                errors.push(`Medication #${index + 1}: Quantity must be at least 1 if provided`);
                 item.find('input[name^="medications"][name$="[quantity]"]').addClass('is-invalid');
             }
 
