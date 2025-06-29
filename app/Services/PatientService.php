@@ -25,7 +25,10 @@ class PatientService
             'name' => trim($patient->first_name . ' ' . $patient->last_name),
             'phone' => $patient->phone ?? false,
             'mobile' => $patient->mobile ?? false,
-            'email' => $patient->email ?? false,
+            'email' => $patient->email ?? false, 
+            'street' => $patient->address ?? false,
+            'street2' => false,
+            'city' => false,
             'customer_rank' => 1,
             'company_type' => 'person'
         ];

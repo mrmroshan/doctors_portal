@@ -13,9 +13,13 @@ class Kernel extends ConsoleKernel
      * @param  \Illuminate\Console\Scheduling\Schedule  $schedule
      * @return void
      */
-    protected function schedule(Schedule $schedule)
+    protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        // Schedule the order status update command to run every 5 minutes
+        $schedule->command('orders:update-status')
+                 ->everyFiveMinutes()
+                 ->withoutOverlapping()
+                 ->appendOutputTo(storage_path('logs/order-status-updates.log'));
     }
 
     /**
@@ -30,3 +34,4 @@ class Kernel extends ConsoleKernel
         require base_path('routes/console.php');
     }
 }
+

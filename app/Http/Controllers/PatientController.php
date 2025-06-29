@@ -97,6 +97,7 @@ class PatientController extends Controller
             'email' => 'required|email|unique:patients',
             'phone' => 'required|string|max:20',
             'address' => 'required|string|max:500',
+            'odoo_partner_id' => 'nullable|string|max:500',
         ]);
 
         $patient = Patient::create($validated);
@@ -172,6 +173,7 @@ class PatientController extends Controller
             'email' => 'required|email|unique:patients,email,' . $patient->id,
             'phone' => 'required|string|max:20',
             'address' => 'required|string|max:500',
+            'odoo_partner_id' => 'nullable|string|max:500',
         ]);
 
         $patient->update($validated);

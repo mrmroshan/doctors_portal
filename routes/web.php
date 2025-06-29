@@ -50,6 +50,8 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/admin/sync-status', [HomeController::class, 'syncStatus'])->name('admin.sync-status');
     });
 
+
+
     // Routes accessible by both doctor and admin
     Route::middleware(['role:doctor,admin'])->group(function () {
         // Existing routes
@@ -295,7 +297,6 @@ Route::get('/get_sales_orders_by_doctor/{filter?}', function ($filter = null) {
 
 
 
-
 Route::get('/get-sales-order-data/{id}', function ($id) {
     $odooApi = new OdooApi();
 
@@ -326,60 +327,83 @@ Route::get('/get-sales-order-data/{id}', function ($id) {
 
 
 
+// Route to manually update order statuses (admin only)
+
+Route::middleware(['auth', 'role:admin'])->get('/update-order-statuses', function () {
+    try {
+        Artisan::call('orders:update-status');
+        $output = Artisan::output();
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Order statuses updated successfully',
+            'details' => $output
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Failed to update order statuses',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+});
+
+
+
+
 
 Route::get('/test-create-sales-order', function () {
     $odooApi = new OdooApi();
-    //dd(auth()->user()->odoo_doctor_id);
 
     try {
-        // Prepare sales order data
+        // Prepare order data
         $orderData = [
-            'partner_id' => (int)auth()->user()->odoo_doctor_id,  // Replace with a valid partner ID
+            'partner_id' => 19938,  // Replace with a valid partner ID
             'date_order' => date('Y-m-d H:i:s'),
-            'doctor_id' => auth()->user()->odoo_doctor_id,
-            'patient_phone' => 33377333,
-            'patient' =>"ADNAN AL ADEEB (SHC)",
-            'state' => 'draft',  // Set the state to 'draft'
+            'doctor_id' => 19938,  // Replace with a valid doctor ID
+            'patient_phone' => '33377333',
+            'patient' => "ADNAN AL ADEEB (SHC)",
+            'patient_portal_id' => 111,
+            'prescription_reference' => 'TEST-' . time(),  // Add a unique reference
         ];
 
-        // Create the sales order
-        $saleOrderId = $odooApi->createSalesOrder($orderData);
-
-        // Add order lines
+        // Prepare order lines
         $orderLines = [
             [
                 'product_id' => 68717,  // Replace with a valid product ID
                 'product_uom_qty' => 2,
+                'name' => 'Test Medication 1',
                 'price_unit' => 18.85,
+                'directions' => 'Take twice daily with food'
             ],
             [
                 'product_id' => 54186,  // Replace with a valid product ID
                 'product_uom_qty' => 1,
+                'name' => 'Test Medication 2',
                 'price_unit' => 4,
+                'directions' => 'Take once daily before bed'
             ],
         ];
 
-        foreach ($orderLines as $line) {
-            $odooApi->addOrderLine($saleOrderId, $line);
-        }
+        // Create the sales order using the new standardized method
+        $saleOrderId = $odooApi->createPrescriptionOrder($orderData, $orderLines);
 
         // Fetch the newly created sales order
         $saleOrder = $odooApi->getSalesOrder($saleOrderId);
 
         return response()->json([
             'success' => true,
-            'message' => 'Sales order created successfully',
+            'message' => 'Prescription order created successfully',
             'data' => $saleOrder
         ]);
     } catch (\Exception $e) {
         return response()->json([
             'success' => false,
-            'message' => 'Failed to create sales order',
+            'message' => 'Failed to create prescription order',
             'error' => $e->getMessage()
         ], 500);
     }
 });
-
 
 
 
@@ -459,3 +483,4 @@ Route::get('/api/medications/search', function (Request $request) {
         ], 500);
     }
 })->name('api.medications.search');
+

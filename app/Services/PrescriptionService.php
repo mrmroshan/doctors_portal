@@ -21,6 +21,7 @@ class PrescriptionService
 
     public function create(array $data)
     {
+        //dd('test');
         DB::beginTransaction();
         try {
             // Create prescription
@@ -77,60 +78,70 @@ class PrescriptionService
 
     protected function syncWithOdoo(Prescription $prescription)
     {
-        
         $odooMedications = $prescription->medications->where('type', 'odoo');
-    
+
         if ($odooMedications->isEmpty()) {
             $prescription->update(['sync_status' => Prescription::STATUS_NOT_REQUIRED]);
             return;
         }
-    
+
         try {
+
             // Sync patient with Odoo first
             $partnerId = $this->patientService->syncWithOdoo($prescription->patient);
-    
-            // Create sales order
-            $orderId = $this->odooApi->createSalesOrder([
-                'partner_id' => (int)auth()->user()->odoo_doctor_id,
+            sleep(1);
+
+            if (!$partnerId) {
+                throw new \Exception('Failed to get partner ID from Odoo');
+            }
+
+            // Prepare order data
+            $orderData = [
+                'partner_id' => $partnerId,
                 'prescription_reference' => $prescription->id,
                 'doctor_id' => (int)auth()->user()->odoo_doctor_id,
                 'patient_phone' => $prescription->patient->phone,
-                'patient' => $prescription->patient->first_name ." ".$prescription->patient->last_name,
+                'patient' => $prescription->patient->first_name . " " . $prescription->patient->last_name,
                 'patient_portal_id' => $prescription->patient->id,
-            ]);
-    
-            // Create order lines
-            $orderLines = $odooMedications->map(function ($medication) use ($orderId) {
+            ];
+
+            // Prepare order lines
+            $orderLines = $odooMedications->map(function ($medication) {
                 $product = $this->odooApi->getProductData($medication->product);
-    
+
                 return [
-                    'order_id' => $orderId,
                     'product_id' => (int)$medication->product,
                     'product_uom_qty' => (int)$medication->quantity,
-                    'name' => $product['name'] ?? '', // Use product name
-                    'price_unit' => $product['list_price'] ?? 0, // Use product list price
-                    'directions' => $medication->directions, // Add directions field
+                    'name' => $product['name'] ?? '',
+                    'price_unit' => $product['list_price'] ?? 0,
+                    'directions' => $medication->directions,
                 ];
             })->toArray();
-    
-            Log::info('$orderLines data', [$orderLines]);
-    
-            // Add order lines to the sales order
-            foreach ($orderLines as $line) {
-                $this->odooApi->addOrderLine($orderId, $line);
+
+            // Create the order using the standardized method
+            $orderId = $this->odooApi->createPrescriptionOrder($orderData, $orderLines);
+
+            sleep(1);
+
+            if (!$orderId) {
+                throw new \Exception('Failed to get order ID from Odoo');
             }
-    
+
+            $saleOrder = $this->odooApi->getSalesOrder($orderId);
+            // dd($saleOrder['name']);
+            
             $prescription->update([
                 'odoo_order_id' => $orderId,
+                // 'odoo_order_name' => $saleOrder['name'],
                 'sync_status' => Prescription::STATUS_SYNCED
             ]);
-    
+
         } catch (\Exception $e) {
             $prescription->update([
                 'sync_status' => Prescription::STATUS_ERROR,
                 'sync_error' => $e->getMessage()
             ]);
-    
+
             throw $e;
         }
     }

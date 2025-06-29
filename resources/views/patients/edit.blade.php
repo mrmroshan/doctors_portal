@@ -13,6 +13,14 @@
                         @method('PUT')
 
                         <div class="mb-3">
+                            <label for="first_name" class="form-label">Odoo Partner Id</label>
+                            <input type="text" class="form-control @error('first_name') is-invalid @enderror" 
+                                   id="odoo_partner_id" name="odoo_partner_id" value="{{ old('odoo_partner_id', $patient->odoo_partner_id) }}" >
+                            @error('odoo_partner_id')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+                        <div class="mb-3">
                             <label for="first_name" class="form-label">First Name</label>
                             <input type="text" class="form-control @error('first_name') is-invalid @enderror" 
                                    id="first_name" name="first_name" value="{{ old('first_name', $patient->first_name) }}" required>

@@ -45,8 +45,19 @@ class OdooSyncService
                 return true;
             }
 
-            // Create sales order in Odoo
-            $orderId = $this->createSalesOrder($prescription, $orderLines);
+            // Prepare order data
+            $orderData = [
+                'partner_id' => $prescription->patient->odoo_partner_id,
+                'prescription_reference' => $prescription->id,
+                'date_order' => $prescription->prescription_date->format('Y-m-d'),
+                'doctor_id' => auth()->user()->odoo_doctor_id,
+                'patient_phone' => $prescription->patient->phone ?? '',
+                'patient' => $prescription->patient->first_name . ' ' . $prescription->patient->last_name,
+                'patient_portal_id' => $prescription->patient->id,
+            ];
+
+            // Create sales order in Odoo using the standardized method
+            $orderId = $this->createPrescriptionOrder($orderData, $orderLines);
 
             // Mark prescription as synced
             $prescription->markAsSynced($orderId);
@@ -107,62 +118,53 @@ class OdooSyncService
 
     
 /**
- * Create a sales order in Odoo
+ * Create a sales order in Odoo using the standardized method
  *
- * @param Prescription $prescription
+ * @param array $orderData
  * @param array $orderLines
  * @return string
  * @throws OdooSyncException
  */
-protected function createSalesOrder(Prescription $prescription, array $orderLines): string
+protected function createPrescriptionOrder(array $orderData, array $orderLines): string
 {
     try {
-        $response = Http::withHeaders([
-            'Authorization' => 'Bearer ' . $this->apiKey,
-            'Accept' => 'application/json',
-        ])->post("{$this->baseUrl}/api/sale.order", [
-            'db' => $this->database,
-            'login' => $this->username,
-            'password' => $this->password,
-            'data' => [
-                'partner_id' => $prescription->patient->odoo_partner_id,
-                'date_order' => $prescription->prescription_date->format('Y-m-d'),
-                'prescription_id' => $prescription->id,
-                //'doctor_id' =>  $prescription->doctor->odoo_user_id,
-                'date_order' => date('Y-m-d H:i:s'),
-                'doctor_id' => auth()->user()->odoo_doctor_id,
-                'patient_phone' => 333333,
-                'patient' =>"ADNAN AL ADEEB (SHC)",
-                'order_line' => array_map(function ($line) {
-                    return [
-                        'product_id' => $line['product_id'],
-                        'product_uom_qty' => $line['product_uom_qty'],
-                        'price_unit' => $line['price_unit'] ?? 0,
-                        'name' => $line['name'],
-                        'product_uom' => $line['product_uom'] ?? 1,
-                        'tax_id' => $line['tax_id'] ?? [[6, 0, []]],
-                        // Add any other required fields for the order line
-                    ];
-                }, $orderLines),
-                'note' => $this->buildOrderNotes($prescription),
-            ]
-        ]);
-
-        if (!$response->successful()) {
-            throw new OdooSyncException('Failed to create sales order: ' . $response->body());
-        }
-
-        $data = $response->json();
+        // Create a new OdooApi instance to use our standardized method
+        $odooApi = app(OdooApi::class);
         
-        if (!isset($data['id'])) {
-            throw new OdooSyncException('Invalid response from Odoo: Order ID not found');
+        // Use the standardized method to create the order
+        $orderId = $odooApi->createPrescriptionOrder($orderData, $orderLines);
+        
+        if (!$orderId) {
+            throw new OdooSyncException('Failed to create sales order: No order ID returned');
         }
-
-        return (string) $data['id'];
-
+        
+        return (string)$orderId;
+        
     } catch (\Exception $e) {
         throw new OdooSyncException('Failed to create sales order: ' . $e->getMessage());
     }
+}
+
+/**
+ * @deprecated Use createPrescriptionOrder instead
+ */
+protected function createSalesOrder(Prescription $prescription, array $orderLines): string
+{
+    Log::warning('Deprecated method createSalesOrder called. Use createPrescriptionOrder instead.');
+    
+    // Prepare order data
+    $orderData = [
+        'partner_id' => $prescription->patient->odoo_partner_id,
+        'prescription_reference' => $prescription->id,
+        'date_order' => $prescription->prescription_date->format('Y-m-d'),
+        'doctor_id' => auth()->user()->odoo_doctor_id,
+        'patient_phone' => $prescription->patient->phone ?? '',
+        'patient' => $prescription->patient->first_name . ' ' . $prescription->patient->last_name,
+        'patient_portal_id' => $prescription->patient->id,
+    ];
+    
+    // Use the new method
+    return $this->createPrescriptionOrder($orderData, $orderLines);
 }
 
 

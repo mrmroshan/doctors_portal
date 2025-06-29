@@ -26,9 +26,10 @@
                     <p class="mb-1"><strong>Prescription Date:</strong> {{ date('M d, Y', strtotime($prescription->prescription_date)) }}</p>
                     <p class="mb-1"><strong>Created:</strong> {{ $prescription->created_at->format('M d, Y H:i') }}</p>
                     <p class="mb-1"><strong>Doctor:</strong> Dr. {{ $prescription->doctor->name }}</p>
-                    @if($prescription->sync_status === 'synced')
+                    {{-- @if($prescription->sync_status === 'synced') --}}
+                        <p class="mb-1"><strong>Odoo Order Name:</strong> {{ $prescription->odoo_order_name }}</p>
                         <p class="mb-1"><strong>Odoo Order ID:</strong> {{ $prescription->odoo_order_id }}</p>
-                    @endif
+                    {{-- @endif --}}
                 </div>
             </div>
 

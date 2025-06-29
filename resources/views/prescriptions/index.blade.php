@@ -58,7 +58,8 @@
                         <th>Date</th>
                         <th>Patient</th>
                         <th>Medications</th>
-                        <th>Status</th>
+                        <th>Sync Status</th>
+                        <th>Order Status</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -112,6 +113,9 @@
                                     @default
                                         <span class="badge bg-warning text-dark">Pending</span>
                                 @endswitch
+                            </td>
+                            <td>
+                                <span class="badge bg-warning text-dark">{{ $prescription->order_status }}</span>
                             </td>
                             <td>
                                 <div class="btn-group">

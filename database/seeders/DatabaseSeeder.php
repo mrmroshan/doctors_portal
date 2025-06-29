@@ -17,31 +17,32 @@ class DatabaseSeeder extends Seeder
     public function run()
     {
 
-        //   // Create admin user
-        //   User::create([
-        //     'name' => 'Admin User',
-        //     'email' => 'admin@example.com',
-        //     'password' => bcrypt('password'),
-        //     'role' => 'admin',
-        // ]);
+          // Create admin user
+          User::create([
+            'name' => 'Admin User',
+            'email' => 'admin@example.com',
+            'password' => bcrypt('password'),
+            'role' => 'admin',
+        ]);
 
-        // // Create doctor user
-        // User::create([
-        //     'name' => 'Doctor User',
-        //     'email' => 'doctor@example.com',
-        //     'password' => bcrypt('password'),
-        //     'role' => 'doctor',
-        // ]);
+        // Create doctor user
+        User::create([
+            'name' => 'Doctor User',
+            'email' => 'doctor@example.com',
+            'password' => bcrypt('password'),
+            'role' => 'doctor',
+            'odoo_doctor_id' => 19938,
+        ]);
 
-        // // Create some test patients
-        // Patient::create([
-        //     'first_name' => 'John',
-        //     'last_name' => 'Doe',
-        //     'date_of_birth' => '1990-01-01',
-        //     'email' => 'john@example.com',
-        //     'phone' => '1234567890',
-        //     'address' => '123 Main St',
-        // ]);
+        // Create some test patients
+        Patient::create([
+            'first_name' => 'John',
+            'last_name' => 'Doe',
+            'date_of_birth' => '1990-01-01',
+            'email' => 'john@example.com',
+            'phone' => '1234567890',
+            'address' => '123 Main St',
+        ]);
 
          // Create additional admin users using factory
         User::factory()->count(5)->create([
@@ -49,7 +50,7 @@ class DatabaseSeeder extends Seeder
         ]);
 
         // Create additional doctor users using factory
-        User::factory()->count(10)->create([
+        User::factory()->count(3)->create([
             'role' => 'doctor'
         ]);
 

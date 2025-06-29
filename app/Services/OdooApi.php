@@ -234,77 +234,36 @@ class OdooApi
 
 
 
-    public function createSalesOrder(array $data)
-    {
-
-        try {
-            $this->retryCount = 0;
-            
-            // Prepare minimal required data for sales order
-            $orderData = [
-                'partner_id' => (int)$data['partner_id'],
-                'date_order' => $data['date_order'] ?? now()->format('Y-m-d H:i:s'),
-                'state' => 'draft',
-                'company_id' => $data['company_id'] ?? 1,  // Default company ID
-                'pricelist_id' => $data['pricelist_id'] ?? 1,  // Default price list
-                'user_id' => $data['user_id'] ?? $this->uid,  // Current authenticated user
-                'doctor_id' => $data['doctor_id'],
-                'patient_phone' => $data['patient_phone'],
-                'patient' =>$data['patient'],
-                'patient_portal_id'=>$data['patient_portal_id'],
-            ];
-    
-            Log::info('Creating sales order in Odoo', ['data' => $orderData]);
-    
-            // Create the sales order using the correct format
-            $result = $this->call('/web/dataset/call_kw', [
-                'model' => 'sale.order',
-                'method' => 'create',
-                'args' => [$orderData],
-                'kwargs' => [
-                    'context' => [
-                        'lang' => 'en_US',
-                        'tz' => 'Asia/Riyadh',
-                        'uid' => $this->uid,
-                        'default_company_id' => $orderData['company_id']
-                    ]
-                ]
-            ]);
-    
-            Log::info('Sales order created successfully', ['sale_order_id' => $result]);
-            return $result;
-    
-        } catch (\Exception $e) {
-            Log::error('Failed to create sales order', [
-                'error' => $e->getMessage(),
-                'data' => $data
-            ]);
-            throw new OdooApiException('Failed to create sales order: ' . $e->getMessage());
-        }
-    }
     
 
-    
-    public function addOrderLine(int $orderId, array $lineData)
+    /**
+     * Add a line to an existing sales order
+     * 
+     * @param int $orderId The ID of the sales order
+     * @param array $lineData The line data to add
+     * @return int The created order line ID
+     * @throws OdooApiException
+     */
+    public function addOrderLine(int $orderId, array $lineData): int
     {
         try {
             // Format the order line data according to Odoo's expected structure
             $orderLine = [
-                'order_id'=> $orderId,
-                'product_id'=> $lineData['product_id'],
-                'name'=> $lineData['name'] ?? '/',  // Product description
-                'product_uom_qty'=> $lineData['product_uom_qty'],
-                'price_unit'=> $lineData['price_unit'],
-                'product_uom'=> $lineData['product_uom'] ?? 1,  // Default unit of measure
-                'tax_id'=> $lineData['tax_id'] ?? [[6, 0, []]]  // Default empty tax
+                'order_id' => $orderId,
+                'product_id' => (int)$lineData['product_id'],
+                'name' => $lineData['name'] ?? '/',  // Product description
+                'product_uom_qty' => (int)$lineData['product_uom_qty'],
+                'price_unit' => $lineData['price_unit'] ?? 0,
+                'product_uom' => $lineData['product_uom'] ?? 1,  // Default unit of measure
+                'tax_id' => $lineData['tax_id'] ?? [[6, 0, []]]  // Default empty tax
             ];
-    
+
             Log::info('Adding order line to sales order', [
                 'order_id' => $orderId,
                 'line_data' => $orderLine
             ]);
-    
-            $result = $this->call('/web/dataset/call_kw', [
+
+            $lineId = $this->call('/web/dataset/call_kw', [
                 'model' => 'sale.order.line',
                 'method' => 'create',
                 'args' => [$orderLine],
@@ -316,14 +275,14 @@ class OdooApi
                     ]
                 ]
             ]);
-    
+
             Log::info('Order line added successfully', [
                 'order_id' => $orderId,
-                'line_id' => $result
+                'line_id' => $lineId
             ]);
-    
-            return $result;
-    
+
+            return $lineId;
+
         } catch (\Exception $e) {
             Log::error('Failed to add order line', [
                 'error' => $e->getMessage(),
@@ -333,6 +292,43 @@ class OdooApi
             throw new OdooApiException('Failed to add order line: ' . $e->getMessage());
         }
     }
+
+
+
+
+    /**
+     * @deprecated Use createPrescriptionOrder instead
+     */
+    // public function createSalesOrder(array $data)
+    // {
+    //     Log::warning('Deprecated method createSalesOrder called. Use createPrescriptionOrder instead.');
+        
+    //     try {
+    //         $this->retryCount = 0;
+            
+    //         // Convert old format to new format
+    //         $orderData = [
+    //             'partner_id' => (int)$data['partner_id'],
+    //             'date_order' => $data['date_order'] ?? now()->format('Y-m-d H:i:s'),
+    //             'doctor_id' => (int)$data['doctor_id'],
+    //             'patient_phone' => $data['patient_phone'] ?? '',
+    //             'patient' => $data['patient'] ?? '',
+    //             'patient_portal_id' => $data['patient_portal_id'] ?? null,
+    //             'prescription_reference' => $data['prescription_reference'] ?? null,
+    //         ];
+            
+    //         // Create the order without lines for backward compatibility
+    //         return $this->createPrescriptionOrder($orderData, []);
+            
+    //     } catch (\Exception $e) {
+    //         Log::error('Failed to create sales order', [
+    //             'error' => $e->getMessage(),
+    //             'data' => $data
+    //         ]);
+    //         throw new OdooApiException('Failed to create sales order: ' . $e->getMessage());
+    //     }
+    // }
+
 
 
     
@@ -376,35 +372,35 @@ class OdooApi
 
 
     // app/Services/OdooApi.php
-/**
- * Update an existing sales order in Odoo
- *
- * @param int $orderId
- * @param array $data
- * @return bool
- * @throws \Exception
- */
-public function updateSalesOrder(int $orderId, array $data): bool
-{
-    $this->ensureAuthenticated();
+    /**
+     * Update an existing sales order in Odoo
+     *
+     * @param int $orderId
+     * @param array $data
+     * @return bool
+     * @throws \Exception
+     */
+    public function updateSalesOrder(int $orderId, array $data): bool
+    {
+        $this->ensureAuthenticated();
 
-    $params = [
-        'model' => 'sale.order',
-        'method' => 'write',
-        'args' => [
-            [$orderId],
-            $data
-        ],
-    ];
+        $params = [
+            'model' => 'sale.order',
+            'method' => 'write',
+            'args' => [
+                [$orderId],
+                $data
+            ],
+        ];
 
-    $response = $this->call('/web/dataset/call_kw', $params);
+        $response = $this->call('/web/dataset/call_kw', $params);
 
-    if ($response['status'] === 'success') {
-        return true;
-    } else {
-        throw new \Exception($response['error']['data']['message'] ?? 'Failed to update sales order');
+        if ($response['status'] === 'success') {
+            return true;
+        } else {
+            throw new \Exception($response['error']['data']['message'] ?? 'Failed to update sales order');
+        }
     }
-}
 
 
 
@@ -425,9 +421,12 @@ public function updateSalesOrder(int $orderId, array $data): bool
                 'phone' => $data['phone'] ?? false,
                 'mobile' => $data['mobile'] ?? false,
                 'email' => $data['email'] ?? false,
-                'customer_rank' => 1,
+                'street' => $data['street'] ?? false,
+                'street2' => $data['street2'] ?? false, 
+                'city' => $data['city'] ?? false,               
+                'customer_rank' => 1,   
                 'company_type' => 'person',
-                'type' => 'contact'  // Add this line
+                'type' => 'contact' 
             ];
 
             Log::info('Creating partner in Odoo', ['data' => $partnerData]);
@@ -753,6 +752,141 @@ public function updateSalesOrder(int $orderId, array $data): bool
 
 
 
+    /**
+     * Create a sales order from a prescription
+     * Standardized method to create sales orders from prescriptions
+     *
+     * @param array $orderData Core order data (patient, doctor, etc.)
+     * @param array $orderLines Array of product lines to add to the order
+     * @return int The created sales order ID
+     * @throws OdooApiException
+     */
+    public function createPrescriptionOrder(array $orderData, array $orderLines): int
+    {
+        try {
+            $this->retryCount = 0;
+            
+            // Standardize required fields with sensible defaults
+            $standardOrderData = [
+                'partner_id' => (int)$orderData['partner_id'],
+                'date_order' => $orderData['date_order'] ?? now()->format('Y-m-d H:i:s'),
+                'state' => 'draft',
+                'company_id' => $orderData['company_id'] ?? 1,
+                'pricelist_id' => $orderData['pricelist_id'] ?? 1,
+                'user_id' => $orderData['user_id'] ?? $this->uid,
+                'doctor_id' => (int)$orderData['doctor_id'],
+                'patient_phone' => $orderData['patient_phone'] ?? '',
+                'patient' => $orderData['patient'] ?? '',
+                'patient_portal_id' => $orderData['patient_portal_id'] ?? null,
+                //'prescription_reference' => $orderData['prescription_reference'] ?? null,
+            ];
 
+           // dd($standardOrderData);
+        
+            Log::info('Creating prescription sales order in Odoo', ['data' => $standardOrderData]);
+        
+            // Create the sales order
+            $orderId = $this->call('/web/dataset/call_kw', [
+                'model' => 'sale.order',
+                'method' => 'create',
+                'args' => [$standardOrderData],
+                'kwargs' => [
+                    'context' => [
+                        'lang' => 'en_US',
+                        'tz' => 'Asia/Riyadh',
+                        'uid' => $this->uid,
+                        'default_company_id' => $standardOrderData['company_id']
+                    ]
+                ]
+            ]);
+        
+            Log::info('Sales order created successfully', ['sale_order_id' => $orderId]);
+
+            
+            // Add order lines
+            foreach ($orderLines as $line) {
+                $this->addOrderLine($orderId, $line);
+            }
+            
+            return $orderId;
+        
+        } catch (\Exception $e) {
+            Log::error('Failed to create prescription sales order', [
+                'error' => $e->getMessage(),
+                'data' => $orderData
+            ]);
+            throw new OdooApiException('Failed to create prescription sales order: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Get sales orders that need status updates
+     * 
+     * @param array $orderIds List of order IDs to check
+     * @return array Updated order data
+     * @throws OdooApiException
+     */
+    public function getSalesOrdersStatus(array $orderIds)
+    {
+        try {
+            $this->retryCount = 0;
+            $this->ensureAuthenticated();
+            
+            if (empty($orderIds)) {
+                return [];
+            }
+            
+            $result = $this->call('/web/dataset/call_kw', [
+                'model' => 'sale.order',
+                'method' => 'search_read',
+                'args' => [
+                    [['id', 'in', $orderIds]],
+                    ['id', 'name', 'state', 'date_order', 'amount_total', 'invoice_status']
+                ],
+                'kwargs' => [
+                    'context' => ['lang' => 'en_US']
+                ]
+            ]);
+            
+            // Transform the result to a more usable format
+            return collect($result)->keyBy('id')->map(function ($order) {
+                return [
+                    'id' => $order['id'],
+                    'name' => $order['name'],
+                    'state' => $this->mapOrderState($order['state']),
+                    'date_order' => $order['date_order'],
+                    'amount_total' => $order['amount_total'],
+                    'invoice_status' => $order['invoice_status']
+                ];
+            })->all();
+            
+        } catch (\Exception $e) {
+            Log::error('Failed to fetch sales orders status from Odoo', [
+                'error' => $e->getMessage(),
+                'order_ids' => $orderIds,
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw new OdooApiException('Failed to fetch sales orders status: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Map Odoo order state to a more user-friendly status
+     * 
+     * @param string $state Odoo order state
+     * @return string User-friendly status
+     */
+    private function mapOrderState(string $state): string
+    {
+        $stateMap = [
+            'draft' => 'Draft',
+            'sent' => 'Quotation Sent',
+            'sale' => 'Confirmed',
+            'done' => 'Locked',
+            'cancel' => 'Cancelled',
+        ];
+        
+        return $stateMap[$state] ?? $state;
+    }
 
 }
