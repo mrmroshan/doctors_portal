@@ -29,6 +29,7 @@ class Prescription extends Model
         'prescription_date',
         'created_by',
         'odoo_order_id',
+        'odoo_order_name',
         'sync_status',
         'sync_error'
     ];
@@ -88,14 +89,20 @@ class Prescription extends Model
     }
 
     // Helper methods
-    public function markAsSynced(string $odooOrderId): bool
+    public function markAsSynced(string $odooOrderId, string $odooOrderName = null): bool
     {
-        return $this->update([
+        $updateData = [
             'sync_status' => self::STATUS_SYNCED,
             'odoo_order_id' => $odooOrderId,
             'sync_attempted_at' => Carbon::now(),
             'sync_error' => null
-        ]);
+        ];
+
+        if ($odooOrderName) {
+            $updateData['odoo_order_name'] = $odooOrderName;
+        }
+
+        return $this->update($updateData);
     }
 
     public function markAsFailed(string $error): bool

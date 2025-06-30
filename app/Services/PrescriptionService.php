@@ -127,14 +127,12 @@ class PrescriptionService
                 throw new \Exception('Failed to get order ID from Odoo');
             }
 
+            // Fetch the sales order to get the order name
             $saleOrder = $this->odooApi->getSalesOrder($orderId);
-            // dd($saleOrder['name']);
-            
-            $prescription->update([
-                'odoo_order_id' => $orderId,
-                // 'odoo_order_name' => $saleOrder['name'],
-                'sync_status' => Prescription::STATUS_SYNCED
-            ]);
+            $orderName = $saleOrder['name']; 
+
+            // Use the improved markAsSynced method
+            $prescription->markAsSynced($orderId, $orderName);
 
         } catch (\Exception $e) {
             $prescription->update([

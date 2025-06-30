@@ -320,6 +320,8 @@ class PrescriptionController extends Controller
             ]);
 
             DB::transaction(function () use ($validated, $prescription) {
+                dd($validated);
+                
                 // Update prescription
                 $prescription->update([
                     'prescription_date' => $validated['prescription_date'],
@@ -386,8 +388,7 @@ class PrescriptionController extends Controller
     public function resync(Prescription $prescription)
     {
         try {
-            // Implement your resync logic here
-            // This should call your Odoo service to resync the prescription
+          
 
             return response()->json(['success' => true]);
         } catch (\Exception $e) {

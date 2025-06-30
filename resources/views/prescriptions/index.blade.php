@@ -59,7 +59,7 @@
                         <th>Patient</th>
                         <th>Medications</th>
                         <th>Sync Status</th>
-                        <th>Order Status</th>
+                        <th>Odoo Order</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -115,7 +115,19 @@
                                 @endswitch
                             </td>
                             <td>
-                                <span class="badge bg-warning text-dark">{{ $prescription->order_status }}</span>
+                                @if($prescription->sync_status === 'synced' && $prescription->odoo_order_name)
+                                    <div>
+                                        <strong>{{ $prescription->odoo_order_name }}</strong>
+                                        <br>
+                                        <small class="text-muted">ID: {{ $prescription->odoo_order_id }}</small>
+                                    </div>
+                                @elseif($prescription->sync_status === 'pending')
+                                    <span class="badge bg-warning text-dark">Pending Sync</span>
+                                @elseif($prescription->sync_status === 'error')
+                                    <span class="badge bg-danger">Sync Failed</span>
+                                @else
+                                    <span class="text-muted">-</span>
+                                @endif
                             </td>
                             <td>
                                 <div class="btn-group">
