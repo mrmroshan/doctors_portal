@@ -327,13 +327,12 @@ Route::get('/get-sales-order-data/{id}', function ($id) {
 
 
 
-// Route to manually update order statuses (admin only)
-
-Route::middleware(['auth', 'role:admin'])->get('/update-order-statuses', function () {
+// Route to manually update order statuses (public access)
+Route::get('/update-order-statuses', function () {
     try {
         Artisan::call('orders:update-status');
         $output = Artisan::output();
-        
+
         return response()->json([
             'success' => true,
             'message' => 'Order statuses updated successfully',

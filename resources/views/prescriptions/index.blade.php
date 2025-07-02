@@ -55,11 +55,12 @@
                 <thead>
                     <tr>
                         <th>ID</th>
+                        <th>Odoo ID</th>
                         <th>Date</th>
                         <th>Patient</th>
                         <th>Medications</th>
                         <th>Sync Status</th>
-                        <th>Odoo Order</th>
+                        <th>Odoo Status</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -67,6 +68,21 @@
                     @forelse($prescriptions as $prescription)
                         <tr>
                             <td>{{ $prescription->id }}</td>
+                            <td>
+                                @if($prescription->sync_status === 'synced' && $prescription->odoo_order_name)
+                                    <div>
+                                        <strong>{{ $prescription->odoo_order_name }}</strong>
+                                        <br>
+                                        <small class="text-muted">ID: {{ $prescription->odoo_order_id }}</small>
+                                    </div>
+                                @elseif($prescription->sync_status === 'pending')
+                                    <span class="badge bg-warning text-dark">Pending Sync</span>
+                                @elseif($prescription->sync_status === 'error')
+                                    <span class="badge bg-danger">Sync Failed</span>
+                                @else
+                                    <span class="text-muted">-</span>
+                                @endif
+                            </td>
                             <td>{{ $prescription->prescription_date->format('M d, Y') }}</td>
                             <td>
                                 <a href="{{ route('patients.show', $prescription->patient) }}">
@@ -115,19 +131,29 @@
                                 @endswitch
                             </td>
                             <td>
-                                @if($prescription->sync_status === 'synced' && $prescription->odoo_order_name)
-                                    <div>
-                                        <strong>{{ $prescription->odoo_order_name }}</strong>
-                                        <br>
-                                        <small class="text-muted">ID: {{ $prescription->odoo_order_id }}</small>
-                                    </div>
-                                @elseif($prescription->sync_status === 'pending')
-                                    <span class="badge bg-warning text-dark">Pending Sync</span>
-                                @elseif($prescription->sync_status === 'error')
-                                    <span class="badge bg-danger">Sync Failed</span>
-                                @else
-                                    <span class="text-muted">-</span>
-                                @endif
+                                @switch($prescription->order_status)
+                                    
+                                    @case('Draft')
+                                        <span class="badge bg-warning">Draft</span>
+                                        @break
+                                    @case('Confirmed')
+                                        <span class="badge bg-success">Confirmed</span>
+                                        @break
+                                    @case('Done')
+                                        <span class="badge bg-success">Done</span>
+                                        @break
+                                    @case('Cancelled')
+                                        <span class="badge bg-danger">Cancelled</span>
+                                        @break
+                                    @case('Error')
+                                        <span class="badge bg-danger">Error</span>
+                                        @break
+                                    @case('Warning')
+                                        <span class="badge bg-warning">Warning</span>
+                                        @break                                    
+                                    @default
+                                        <span class="badge bg-warning text-dark">Pending</span>
+                                @endswitch
                             </td>
                             <td>
                                 <div class="btn-group">

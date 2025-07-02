@@ -9,6 +9,10 @@
                 <span class="badge bg-{{ $prescription->sync_status === 'synced' ? 'success' : ($prescription->sync_status === 'error' ? 'danger' : 'warning') }}">
                     {{ ucfirst($prescription->sync_status) }}
                 </span>
+                |
+                <span class="badge bg-{{ $prescription->order_status === 'Confirmed' ? 'success' : ($prescription->order_status === 'Cancelled' ? 'danger' : 'warning') }}">
+                    Odoo:{{ ucfirst($prescription->order_status) }}
+                </span>
             </div>
         </div>
         

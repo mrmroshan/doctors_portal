@@ -104,7 +104,7 @@
             $('[data-widget="treeview"]').Treeview('init');
 
             // Auto-hide alerts after 5 seconds
-            $('.alert').delay(5000).fadeOut(350);
+            $('.alert').delay(20000).fadeOut(350);
 
             // Add CSRF token to all AJAX requests
             $.ajaxSetup({

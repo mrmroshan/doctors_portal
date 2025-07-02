@@ -30,6 +30,7 @@ class Prescription extends Model
         'created_by',
         'odoo_order_id',
         'odoo_order_name',
+        'order_status',
         'sync_status',
         'sync_error'
     ];

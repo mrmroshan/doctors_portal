@@ -112,6 +112,7 @@
                                         <th>Date</th>
                                         <th>Medications</th>
                                         <th>Status</th>
+                                        <th>Order Status</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -173,6 +174,33 @@
                                                         <span class="badge bg-warning text-dark">Pending</span>
                                                 @endswitch
                                             </td>
+
+                                            <td>
+                                                @switch($prescription->order_status)
+                                                    
+                                                    @case('Draft')
+                                                        <span class="badge bg-warning">Draft</span>
+                                                        @break
+                                                    @case('Confirmed')
+                                                        <span class="badge bg-success">Confirmed</span>
+                                                        @break
+                                                    @case('Done')
+                                                        <span class="badge bg-success">Done</span>
+                                                        @break
+                                                    @case('Cancelled')
+                                                        <span class="badge bg-danger">Cancelled</span>
+                                                        @break
+                                                    @case('Error')
+                                                        <span class="badge bg-danger">Error</span>
+                                                        @break
+                                                    @case('Warning')
+                                                        <span class="badge bg-warning">Warning</span>
+                                                        @break                                    
+                                                    @default
+                                                        <span class="badge bg-warning text-dark">Pending</span>
+                                                @endswitch
+                                            </td>
+
                                             <td>
                                                 <div class="btn-group btn-group-sm">
                                                     <a href="{{ route('prescriptions.show', $prescription) }}" 

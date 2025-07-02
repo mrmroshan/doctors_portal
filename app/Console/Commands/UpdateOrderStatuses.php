@@ -35,12 +35,15 @@ class UpdateOrderStatuses extends Command
             $prescriptions = Prescription::whereNotNull('odoo_order_id')
                 ->whereNotIn('order_status', ['Locked', 'Cancelled'])
                 ->get();
-                
+
+            $this->info("Total prescriptions with odoo_order_id: " . Prescription::whereNotNull('odoo_order_id')->count());
+            $this->info("Prescriptions to check: {$prescriptions->count()}");
+
             if ($prescriptions->isEmpty()) {
                 $this->info('No orders to update.');
                 return 0;
             }
-            
+
             $this->info("Found {$prescriptions->count()} orders to check for updates.");
             
             // Get all order IDs to check
@@ -49,32 +52,53 @@ class UpdateOrderStatuses extends Command
             // Get updated statuses from Odoo
             $odooApi = app(OdooApi::class);
             $updatedOrders = $odooApi->getSalesOrdersStatus($orderIds);
-            
+
+            $this->info("Order IDs to check: " . implode(', ', $orderIds));
+            $this->info("Received " . count($updatedOrders) . " order updates from Odoo");
+
             $updatedCount = 0;
             
             // Update local prescription records with new statuses
             foreach ($prescriptions as $prescription) {
+
                 $orderId = $prescription->odoo_order_id;
-                
+
+                $this->info("Checking prescription {$prescription->id} with order ID: {$orderId}");
+
                 if (isset($updatedOrders[$orderId])) {
                     $orderData = $updatedOrders[$orderId];
                     $newStatus = $orderData['state'];
-                    
+                    $currentStatus = $prescription->order_status;
+
+                    $this->info("Current status: '{$currentStatus}', New status: '{$newStatus}'");
+
                     // Only update if status has changed
-                    if ($prescription->order_status !== $newStatus) {
-                        $prescription->update([
+                    if ($currentStatus !== $newStatus) {
+                        $this->info("Updating prescription {$prescription->id} from '{$currentStatus}' to '{$newStatus}'");
+
+                        $result = $prescription->update([
                             'order_status' => $newStatus
                         ]);
-                        
-                        $updatedCount++;
-                        
+
+                        if ($result) {
+                            $this->info("✓ Successfully updated prescription {$prescription->id}");
+                            $updatedCount++;
+                        } else {
+                            $this->error("✗ Failed to update prescription {$prescription->id}");
+                        }
+
                         Log::info("Updated order status", [
                             'prescription_id' => $prescription->id,
                             'odoo_order_id' => $orderId,
-                            'old_status' => $prescription->order_status,
-                            'new_status' => $newStatus
+                            'old_status' => $currentStatus,
+                            'new_status' => $newStatus,
+                            'update_result' => $result
                         ]);
+                    } else {
+                        $this->info("No change needed for prescription {$prescription->id}");
                     }
+                } else {
+                    $this->info("No data received from Odoo for order ID: {$orderId}");
                 }
             }
             
