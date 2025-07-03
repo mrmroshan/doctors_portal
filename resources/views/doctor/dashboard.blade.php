@@ -4,6 +4,8 @@
 <div class="container-fluid">
     <h1 class="mb-4">Doctor Dashboard</h1>
 
+
+
     <!-- Info Boxes -->
     <div class="row">
         <div class="col-12 col-sm-6 col-md-3">
@@ -46,10 +48,59 @@
         -->
     </div>
 
+    <!-- Right col -->
+    <section class="col-lg-12 connectedSortable">
+        <!-- Quick Actions -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-bolt mr-1"></i>
+                    Quick Actions
+                </h3>
+            </div>
+            <div class="card-body">
+
+                <div class="d-grid gap-2">
+                    <a href="{{ route('prescriptions.create') }}" class="btn btn-primary btn-block mb-6">
+                        <i class="fas fa-file-medical mr-2"></i> New Prescription
+                    </a>
+
+                    <a href="{{ route('patients.create') }}" class="btn btn-success btn-block mb-6">
+                        <i class="fas fa-user-plus mr-2"></i> Add New Patient
+                    </a>
+                    <!--
+                    <a href="#" class="btn btn-info btn-block">
+                        <i class="fas fa-pills mr-2"></i> View Medications
+                    </a>
+                    -->
+                </div>
+            </div>
+        </div>
+
+        <!-- Sync Status -->
+        <!--
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">
+                    <i class="fas fa-sync mr-1"></i>
+                    Order Sync Status
+                </h3>
+            </div>
+            <div class="card-body">
+            </div>
+        </div>
+        -->
+    </section>
+
+    
+
+
     <!-- Main row -->
     <div class="row">
+
         <!-- Left col -->
-        <section class="col-lg-7 connectedSortable">
+        <section class="col-lg-6 connectedSortable">
+
             <!-- Recent Prescriptions -->
             <div class="card">
                 <div class="card-header">
@@ -79,13 +130,21 @@
                                 <tr>
                                     <td>{{ $prescription->patient->first_name }} {{ $prescription->patient->last_name }}</td>
                                     <td>{{ $prescription->created_at->format('Y-m-d') }}</td>
-                                    <td>
-                                        @if ($prescription->status === 'pending')
+                                    <td>                                        
+                                        @if ($prescription->order_status === 'Pending')
                                             <span class="badge badge-warning">Pending</span>
-                                        @elseif ($prescription->status === 'completed')
-                                            <span class="badge badge-success">Completed</span>
+                                        @elseif ($prescription->order_status === 'Draft')
+                                            <span class="badge badge-warning">Draft</span>
+                                        @elseif ($prescription->order_status === 'Done')
+                                            <span class="badge badge-success">Done</span>
+                                        @elseif ($prescription->order_status === 'Confirmed')
+                                            <span class="badge badge-success">Confirmed</span>
+                                        @elseif ($prescription->order_status === 'Cancelled')
+                                            <span class="badge badge-danger">Cancelled</span>
+                                        @elseif ($prescription->order_status === 'Error')
+                                            <span class="badge badge-danger">Error</span>
                                         @else
-                                            <span class="badge badge-danger">{{ $prescription->status }}</span>
+                                            <span class="badge badge-warning">{{ $prescription->order_status }}</span>
                                         @endif
                                     </td>
                                     <td>
@@ -105,13 +164,24 @@
                 </div>
             </div>
 
-            <!-- Patient List -->
+            
+        </section>
+
+        <!-- Right col -->
+        <section class="col-lg-6 connectedSortable">
+
+            <!-- Recent Patients -->
             <div class="card">
                 <div class="card-header">
                     <h3 class="card-title">
                         <i class="fas fa-users mr-1"></i>
                         Recent Patients
                     </h3>
+                    <div class="card-tools">
+                        <a href="{{ route('patients.create') }}" class="btn btn-primary btn-sm">
+                            <i class="fas fa-plus"></i> Add New Patient
+                        </a>
+                    </div>
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
@@ -119,7 +189,7 @@
                             <thead>
                                 <tr>
                                     <th>Name</th>
-                                    <!-- <th>Last Visit</th> -->
+                                    {{-- <th>Last Visit</th> --}}
                                     <th>Prescriptions</th>
                                     <th>Action</th>
                                 </tr>
@@ -128,7 +198,7 @@
                                 @forelse ($recentPatients as $patient)
                                 <tr>
                                     <td>{{ $patient->first_name }} {{ $patient->last_name }}</td>
-                                    <!-- <td>{{ $patient->lastVisit ? $patient->lastVisit->format('Y-m-d') : 'N/A' }}</td> -->
+                                    {{-- <td>{{ $patient->lastVisit ? $patient->lastVisit->format('Y-m-d') : 'N/A' }}</td> --}}
                                     <td>{{ $patient->prescriptions->count() }}</td>
                                     <td>
                                         <a href="{{ route('patients.show', $patient->id) }}" class="btn btn-sm btn-primary">
@@ -146,49 +216,14 @@
                     </div>
                 </div>
             </div>
+
         </section>
 
-        <!-- Right col -->
-        <section class="col-lg-5 connectedSortable">
-            <!-- Quick Actions -->
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">
-                        <i class="fas fa-bolt mr-1"></i>
-                        Quick Actions
-                    </h3>
-                </div>
-                <div class="card-body">
-                    <div class="d-grid gap-2">
-                        <a href="{{ route('prescriptions.create') }}" class="btn btn-primary btn-block mb-2">
-                            <i class="fas fa-file-medical mr-2"></i> New Prescription
-                        </a>
-                        <a href="{{ route('patients.create') }}" class="btn btn-success btn-block mb-2">
-                            <i class="fas fa-user-plus mr-2"></i> Add New Patient
-                        </a>
-                        <!--
-                        <a href="#" class="btn btn-info btn-block">
-                            <i class="fas fa-pills mr-2"></i> View Medications
-                        </a>
-                        -->
-                    </div>
-                </div>
-            </div>
 
-            <!-- Sync Status -->
-            <!--
-            <div class="card">
-                <div class="card-header">
-                    <h3 class="card-title">
-                        <i class="fas fa-sync mr-1"></i>
-                        Order Sync Status
-                    </h3>
-                </div>
-                <div class="card-body">
-                </div>
-            </div>
-            -->
-        </section>
+
+
+
+        
     </div>
 </div>
 @endsection
